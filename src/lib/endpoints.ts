@@ -1,7 +1,7 @@
 // Typed API calls used by the dashboard pages.
 
 import { apiFetch, tokenStore } from "./api";
-import type { ApiCourier, ApiRider, AuthResponse } from "./types";
+import type { ApiCategory, ApiCourier, ApiRider, AuthResponse } from "./types";
 
 // ---- Auth --------------------------------------------------------------
 export async function login(email: string, password: string) {
@@ -73,4 +73,54 @@ export type CreateRiderInput = {
 
 export function createRider(input: CreateRiderInput) {
   return apiFetch<ApiRider>("/v1/riders", { method: "POST", body: input });
+}
+
+// ---- Categories --------------------------------------------------------
+export function listCategories(params?: {
+  search?: string;
+  isActive?: boolean;
+  sortBy?: "name" | "createdAt";
+  sortOrder?: "asc" | "desc";
+}) {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (typeof params?.isActive === "boolean") {
+    qs.set("isActive", String(params.isActive));
+  }
+  if (params?.sortBy) qs.set("sortBy", params.sortBy);
+  if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
+  const query = qs.toString();
+  return apiFetch<ApiCategory[]>(`/v1/categories${query ? `?${query}` : ""}`);
+}
+
+export type CategoryInput = {
+  name: string;
+  description?: string | null;
+};
+
+export function createCategory(input: CategoryInput) {
+  return apiFetch<ApiCategory>("/v1/categories", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateCategory(id: string, input: CategoryInput) {
+  return apiFetch<ApiCategory>(`/v1/categories/${id}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function setCategoryStatus(id: string, isActive: boolean) {
+  return apiFetch<ApiCategory>(`/v1/categories/${id}/status`, {
+    method: "PATCH",
+    body: { isActive },
+  });
+}
+
+export function deleteCategory(id: string) {
+  return apiFetch<{ success: boolean }>(`/v1/categories/${id}`, {
+    method: "DELETE",
+  });
 }

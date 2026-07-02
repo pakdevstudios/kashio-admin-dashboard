@@ -8,6 +8,7 @@ import { logout } from "@/lib/endpoints";
 const nav = [
   { label: "Dashboard", href: "/dashboard", icon: "grid" },
   { label: "Orders Management", href: "/dashboard/orders", icon: "orders" },
+  { label: "Category Management", href: "/dashboard/categories", icon: "categories" },
   { label: "Customer Management", href: "/dashboard/customers", icon: "users" },
   { label: "Riders Management", href: "/dashboard/riders", icon: "riders" },
   { label: "Revenue", href: "/dashboard/revenue", icon: "revenue" },
@@ -39,6 +40,13 @@ function Icon({ name }: { name: string }) {
       return (
         <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+        </svg>
+      );
+    case "categories":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.169.659 1.591l8.182 8.182a2.25 2.25 0 003.182 0l4.318-4.318a2.25 2.25 0 000-3.182L11.159 3.659A2.25 2.25 0 009.568 3z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.008v.008H6.75V6.75z" />
         </svg>
       );
     case "revenue":

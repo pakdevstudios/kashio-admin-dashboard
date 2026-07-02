@@ -44,6 +44,16 @@ export type ApiRider = {
   activeRides: number;
 };
 
+export type ApiCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AuthResponse = {
   token: string;
   refresh_token: string;
