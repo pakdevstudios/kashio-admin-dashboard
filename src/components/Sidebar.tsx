@@ -9,6 +9,7 @@ const nav = [
   { label: "Dashboard", href: "/dashboard", icon: "grid" },
   { label: "Orders Management", href: "/dashboard/orders", icon: "orders" },
   { label: "Category Management", href: "/dashboard/categories", icon: "categories" },
+  { label: "Product Management", href: "/dashboard/products", icon: "products" },
   { label: "Customer Management", href: "/dashboard/customers", icon: "users" },
   { label: "Riders Management", href: "/dashboard/riders", icon: "riders" },
   { label: "Revenue", href: "/dashboard/revenue", icon: "revenue" },
@@ -47,6 +48,12 @@ function Icon({ name }: { name: string }) {
         <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.169.659 1.591l8.182 8.182a2.25 2.25 0 003.182 0l4.318-4.318a2.25 2.25 0 000-3.182L11.159 3.659A2.25 2.25 0 009.568 3z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.008v.008H6.75V6.75z" />
+        </svg>
+      );
+    case "products":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-8.25-4.5-8.25 4.5m16.5 0l-8.25 4.5m8.25-4.5v9l-8.25 4.5m0-9L3.75 7.5m8.25 4.5v9m-8.25-13.5v9l8.25 4.5" />
         </svg>
       );
     case "revenue":

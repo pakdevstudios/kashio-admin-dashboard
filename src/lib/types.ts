@@ -54,6 +54,48 @@ export type ApiCategory = {
   updatedAt: string;
 };
 
+export type ApiProductImage = {
+  id?: string;
+  url: string;
+  altText: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+};
+
+export type ApiProduct = {
+  id?: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  storeName: string | null;
+  price: number;
+  discountedPrice: number | null;
+  effectivePrice?: number;
+  stockQuantity: number;
+  isActive?: boolean;
+  isAvailable: boolean;
+  inStock?: boolean;
+  category: {
+    id?: string;
+    slug: string;
+    name: string;
+    description?: string | null;
+  };
+  images: ApiProductImage[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PaginatedProducts = {
+  data: ApiProduct[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export type AuthResponse = {
   token: string;
   refresh_token: string;
