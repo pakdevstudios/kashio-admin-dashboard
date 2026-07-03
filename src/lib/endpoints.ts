@@ -4,14 +4,19 @@ import { ApiError, apiFetch, tokenStore } from "./api";
 import type {
   ApiCategory,
   ApiBanner,
+  ApiCart,
+  ApiManagedCart,
   ApiCourier,
   ApiProduct,
   ApiRider,
   ApiSupplier,
   AuthResponse,
   PaginatedBanners,
+  PaginatedManagedCarts,
   PaginatedProducts,
+  ProductType,
   SupplierStatus,
+  VariationSelectionType,
 } from "./types";
 
 // ---- Auth --------------------------------------------------------------
@@ -208,6 +213,56 @@ export function deleteBanner(id: string) {
   });
 }
 
+// ---- Cart --------------------------------------------------------------
+export function getCart() {
+  return apiFetch<ApiCart>("/v1/cart");
+}
+
+export function addCartItem(input: { productId: string; quantity?: number }) {
+  return apiFetch<ApiCart>("/v1/cart/items", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateCartItem(itemId: string, quantity: number) {
+  return apiFetch<ApiCart>(`/v1/cart/items/${itemId}`, {
+    method: "PATCH",
+    body: { quantity },
+  });
+}
+
+export function removeCartItem(itemId: string) {
+  return apiFetch<ApiCart>(`/v1/cart/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
+export function clearCart() {
+  return apiFetch<ApiCart>("/v1/cart", {
+    method: "DELETE",
+  });
+}
+
+export function listManagedCarts(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return apiFetch<PaginatedManagedCarts>(
+    `/v1/cart/admin${query ? `?${query}` : ""}`,
+  );
+}
+
+export function getManagedCart(id: string) {
+  return apiFetch<ApiManagedCart>(`/v1/cart/admin/${id}`);
+}
+
 // ---- Products ----------------------------------------------------------
 export type ProductQueryParams = {
   search?: string;
@@ -259,18 +314,54 @@ export type ProductImageInput = {
   isPrimary?: boolean;
 };
 
+export type ProductVariationOptionInput = {
+  id?: string;
+  name: string;
+  sku?: string | null;
+  price: number;
+  salePrice?: number | null;
+  stockQuantity?: number;
+  isActive?: boolean;
+  isDefault?: boolean;
+  minQuantity?: number;
+  maxQuantity?: number;
+  displayOrder?: number;
+  imageUrl?: string | null;
+};
+
+export type FrequentlyBoughtItemInput = {
+  id?: string;
+  relatedProductId: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+  minQuantity?: number;
+  maxQuantity?: number;
+  displayOrder?: number;
+};
+
 export type ProductInput = {
   title: string;
   description?: string | null;
   categoryId: string;
   supplierId?: string | null;
   storeName?: string | null;
-  price: number;
+  productType?: ProductType;
+  price?: number;
   discountedPrice?: number | null;
   stockQuantity?: number;
   isActive?: boolean;
   isAvailable?: boolean;
   images?: ProductImageInput[];
+  variationLabel?: string;
+  variationSelectionType?: VariationSelectionType;
+  isVariationRequired?: boolean;
+  minVariationSelections?: number;
+  maxVariationSelections?: number;
+  allowSpecialInstructions?: boolean;
+  specialInstructionsPlaceholder?: string | null;
+  specialInstructionsMaxLength?: number;
+  variationOptions?: ProductVariationOptionInput[];
+  frequentlyBoughtItems?: FrequentlyBoughtItemInput[];
 };
 
 export function createProduct(input: ProductInput) {

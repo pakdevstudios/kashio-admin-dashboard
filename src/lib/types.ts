@@ -75,19 +75,80 @@ export type ApiProductImage = {
   isPrimary: boolean;
 };
 
+export type ProductType = "SIMPLE" | "VARIABLE";
+export type VariationSelectionType = "SINGLE" | "MULTIPLE";
+
+export type ApiProductVariationOption = {
+  id?: string;
+  name: string;
+  sku: string | null;
+  price: number;
+  salePrice: number | null;
+  effectivePrice?: number;
+  stockQuantity: number;
+  inStock?: boolean;
+  isActive: boolean;
+  isDefault: boolean;
+  minQuantity: number;
+  maxQuantity: number;
+  displayOrder: number;
+  imageUrl: string | null;
+};
+
+export type ApiFrequentlyBoughtItem = {
+  id?: string;
+  productId: string;
+  relatedProductId?: string;
+  slug?: string;
+  title?: string;
+  productType?: ProductType;
+  price?: number;
+  discountedPrice?: number | null;
+  effectivePrice?: number;
+  defaultVariationOptionId?: string | null;
+  image?: { url: string; altText: string | null } | null;
+  isDefault: boolean;
+  isActive: boolean;
+  inStock?: boolean;
+  minQuantity: number;
+  maxQuantity: number;
+  displayOrder: number;
+  variationOptions?: ApiProductVariationOption[];
+  relatedProduct?: ApiProduct;
+};
+
 export type ApiProduct = {
   id?: string;
   slug: string;
   title: string;
   description: string | null;
   storeName: string | null;
+  productType: ProductType;
   price: number;
   discountedPrice: number | null;
   effectivePrice?: number;
+  displayPrice?: number;
+  startingPrice?: number;
+  priceLabel?: string | null;
   stockQuantity: number;
   isActive?: boolean;
   isAvailable: boolean;
   inStock?: boolean;
+  variationConfig?: {
+    label: string;
+    selectionType: VariationSelectionType;
+    required: boolean;
+    minSelections: number;
+    maxSelections: number;
+  };
+  variationOptions?: ApiProductVariationOption[];
+  frequentlyBoughtTogether?: ApiFrequentlyBoughtItem[];
+  specialInstructions?: {
+    allowed: boolean;
+    placeholder: string | null;
+    maxLength: number;
+  };
+  requiresCustomization?: boolean;
   category: {
     id?: string;
     slug: string;
@@ -100,6 +161,12 @@ export type ApiProduct = {
     status: SupplierStatus;
   } | null;
   images: ApiProductImage[];
+  coverImage?: {
+    url: string;
+    altText: string | null;
+    sortOrder: number;
+    isCover: boolean;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -135,6 +202,81 @@ export type PaginatedProducts = {
 
 export type PaginatedBanners = {
   data: ApiBanner[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export type ApiCartItem = {
+  id: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  isAvailable: boolean;
+  exceedsStock: boolean;
+  product: {
+    id: string;
+    slug: string;
+    title: string;
+    price: number;
+    discountedPrice: number | null;
+    stockQuantity: number;
+    isActive: boolean;
+    isAvailable: boolean;
+    category: {
+      id: string;
+      slug: string;
+      name: string;
+    };
+    image: {
+      url: string;
+      altText: string | null;
+    } | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiCart = {
+  id: string;
+  userId: string;
+  items: ApiCartItem[];
+  summary: {
+    itemCount: number;
+    uniqueItems: number;
+    subtotal: number;
+    discount: number;
+    shipping: number;
+    tax: number;
+    total: number;
+    unavailableCount: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiManagedCart = ApiCart & {
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    role: string;
+  };
+};
+
+export type PaginatedManagedCarts = {
+  data: ApiManagedCart[];
+  metrics: {
+    activeCarts: number;
+    emptyCarts: number;
+    totalCartValue: number;
+    totalItems: number;
+  };
   meta: {
     page: number;
     limit: number;
