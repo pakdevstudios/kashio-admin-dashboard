@@ -10,6 +10,8 @@ const nav = [
   { label: "Orders Management", href: "/dashboard/orders", icon: "orders" },
   { label: "Category Management", href: "/dashboard/categories", icon: "categories" },
   { label: "Product Management", href: "/dashboard/products", icon: "products" },
+  { label: "Banner Management", href: "/dashboard/banners", icon: "banners" },
+  { label: "Supplier Management", href: "/dashboard/suppliers", icon: "suppliers" },
   { label: "Customer Management", href: "/dashboard/customers", icon: "users" },
   { label: "Riders Management", href: "/dashboard/riders", icon: "riders" },
   { label: "Revenue", href: "/dashboard/revenue", icon: "revenue" },
@@ -54,6 +56,19 @@ function Icon({ name }: { name: string }) {
       return (
         <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-8.25-4.5-8.25 4.5m16.5 0l-8.25 4.5m8.25-4.5v9l-8.25 4.5m0-9L3.75 7.5m8.25 4.5v9m-8.25-13.5v9l8.25 4.5" />
+        </svg>
+      );
+    case "banners":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 15l4.5-4.5a1.5 1.5 0 012.121 0l2.129 2.129 1.129-1.129a1.5 1.5 0 012.121 0l4.5 4.5M8.25 8.25h.008v.008H8.25V8.25z" />
+        </svg>
+      );
+    case "suppliers":
+      return (
+        <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h7.5m-10.5 0H3.75a.75.75 0 01-.75-.75V7.5a.75.75 0 01.75-.75h10.5a.75.75 0 01.75.75v11.25m.75 0a1.5 1.5 0 013 0m-3 0a1.5 1.5 0 003 0m0 0h1.5a.75.75 0 00.75-.75v-4.5a.75.75 0 00-.22-.53l-2.78-2.78a.75.75 0 00-.53-.22H15" />
         </svg>
       );
     case "revenue":

@@ -3,11 +3,15 @@
 import { ApiError, apiFetch, tokenStore } from "./api";
 import type {
   ApiCategory,
+  ApiBanner,
   ApiCourier,
   ApiProduct,
   ApiRider,
+  ApiSupplier,
   AuthResponse,
+  PaginatedBanners,
   PaginatedProducts,
+  SupplierStatus,
 } from "./types";
 
 // ---- Auth --------------------------------------------------------------
@@ -132,6 +136,78 @@ export function deleteCategory(id: string) {
   });
 }
 
+// ---- Banners -----------------------------------------------------------
+export type BannerQueryParams = {
+  search?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: "displayOrder" | "createdAt" | "title";
+  sortOrder?: "asc" | "desc";
+};
+
+function bannerQueryString(params?: BannerQueryParams) {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (typeof params?.isActive === "boolean") {
+    qs.set("isActive", String(params.isActive));
+  }
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.sortBy) qs.set("sortBy", params.sortBy);
+  if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
+  const query = qs.toString();
+  return query ? `?${query}` : "";
+}
+
+export function listManagedBanners(params?: BannerQueryParams) {
+  return apiFetch<PaginatedBanners>(`/v1/banners/admin${bannerQueryString(params)}`);
+}
+
+export type BannerInput = {
+  title: string;
+  imageUrl: string;
+  redirectUrl?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  displayOrder: number;
+  isActive?: boolean;
+};
+
+export function createBanner(input: BannerInput) {
+  return apiFetch<ApiBanner>("/v1/banners", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateBanner(id: string, input: Partial<BannerInput>) {
+  return apiFetch<ApiBanner>(`/v1/banners/${id}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function updateBannerStatus(id: string, isActive: boolean) {
+  return apiFetch<ApiBanner>(`/v1/banners/${id}/status`, {
+    method: "PATCH",
+    body: { isActive },
+  });
+}
+
+export function updateBannerOrder(id: string, displayOrder: number) {
+  return apiFetch<ApiBanner>(`/v1/banners/${id}/order`, {
+    method: "PATCH",
+    body: { displayOrder },
+  });
+}
+
+export function deleteBanner(id: string) {
+  return apiFetch<{ success: boolean }>(`/v1/banners/${id}`, {
+    method: "DELETE",
+  });
+}
+
 // ---- Products ----------------------------------------------------------
 export type ProductQueryParams = {
   search?: string;
@@ -187,6 +263,7 @@ export type ProductInput = {
   title: string;
   description?: string | null;
   categoryId: string;
+  supplierId?: string | null;
   storeName?: string | null;
   price: number;
   discountedPrice?: number | null;
@@ -270,5 +347,82 @@ export function updateProductStock(
   return apiFetch<ApiProduct>(`/v1/products/${productId}/stock`, {
     method: "PATCH",
     body: input,
+  });
+}
+
+export function assignProductsToSupplier(
+  productIds: string[],
+  supplierId?: string | null,
+) {
+  return apiFetch<{ success: boolean }>("/v1/products/supplier/assign", {
+    method: "PATCH",
+    body: { productIds, supplierId },
+  });
+}
+
+// ---- Suppliers ---------------------------------------------------------
+export type SupplierInput = {
+  name: string;
+  companyName?: string | null;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  notes?: string | null;
+  status?: SupplierStatus;
+  productIds?: string[];
+};
+
+export function listSuppliers(params?: {
+  search?: string;
+  status?: SupplierStatus;
+  sortBy?: "name" | "createdAt" | "status";
+  sortOrder?: "asc" | "desc";
+}) {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.status) qs.set("status", params.status);
+  if (params?.sortBy) qs.set("sortBy", params.sortBy);
+  if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
+  const query = qs.toString();
+  return apiFetch<ApiSupplier[]>(`/v1/suppliers${query ? `?${query}` : ""}`);
+}
+
+export function getSupplier(id: string) {
+  return apiFetch<ApiSupplier>(`/v1/suppliers/${id}`);
+}
+
+export function createSupplier(input: SupplierInput) {
+  return apiFetch<ApiSupplier>("/v1/suppliers", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateSupplier(id: string, input: Partial<SupplierInput>) {
+  return apiFetch<ApiSupplier>(`/v1/suppliers/${id}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function updateSupplierStatus(id: string, status: SupplierStatus) {
+  return apiFetch<ApiSupplier>(`/v1/suppliers/${id}/status`, {
+    method: "PATCH",
+    body: { status },
+  });
+}
+
+export function assignSupplierProducts(id: string, productIds: string[]) {
+  return apiFetch<ApiSupplier>(`/v1/suppliers/${id}/products`, {
+    method: "PATCH",
+    body: { productIds },
+  });
+}
+
+export function deleteSupplier(id: string) {
+  return apiFetch<ApiSupplier>(`/v1/suppliers/${id}`, {
+    method: "DELETE",
   });
 }

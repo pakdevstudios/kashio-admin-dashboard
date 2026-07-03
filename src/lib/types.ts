@@ -54,6 +54,19 @@ export type ApiCategory = {
   updatedAt: string;
 };
 
+export type ApiBanner = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  redirectUrl: string | null;
+  targetType: string | null;
+  targetId: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiProductImage = {
   id?: string;
   url: string;
@@ -81,13 +94,47 @@ export type ApiProduct = {
     name: string;
     description?: string | null;
   };
+  supplier?: {
+    id: string;
+    name: string;
+    status: SupplierStatus;
+  } | null;
   images: ApiProductImage[];
   createdAt?: string;
   updatedAt?: string;
 };
 
+export type SupplierStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+
+export type ApiSupplier = {
+  id: string;
+  name: string;
+  slug: string;
+  companyName: string | null;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  notes: string | null;
+  status: SupplierStatus;
+  products: ApiProduct[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PaginatedProducts = {
   data: ApiProduct[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export type PaginatedBanners = {
+  data: ApiBanner[];
   meta: {
     page: number;
     limit: number;

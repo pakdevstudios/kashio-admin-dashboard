@@ -5,16 +5,18 @@ import Topbar from "@/components/Topbar";
 import StatusBadge from "@/components/StatusBadge";
 import { ApiError } from "@/lib/api";
 import {
+  assignProductsToSupplier,
   createProduct,
   deleteProduct,
   listCategories,
   listManagedProducts,
+  listSuppliers,
   updateProduct,
   updateProductAvailability,
   updateProductStock,
   type ProductInput,
 } from "@/lib/endpoints";
-import type { ApiCategory, ApiProduct } from "@/lib/types";
+import type { ApiCategory, ApiProduct, ApiSupplier } from "@/lib/types";
 
 type EditingState =
   | { mode: "create"; product?: undefined }
@@ -39,6 +41,7 @@ function formatImages(value: string) {
 function ProductFormModal({
   state,
   categories,
+  suppliers,
   busy,
   error,
   onClose,
@@ -46,6 +49,7 @@ function ProductFormModal({
 }: {
   state: EditingState;
   categories: ApiCategory[];
+  suppliers: ApiSupplier[];
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -56,6 +60,7 @@ function ProductFormModal({
   const [categoryId, setCategoryId] = useState(
     state.product?.category.id ?? categories[0]?.id ?? "",
   );
+  const [supplierId, setSupplierId] = useState(state.product?.supplier?.id ?? "");
   const [storeName, setStoreName] = useState(state.product?.storeName ?? "");
   const [price, setPrice] = useState(String(state.product?.price ?? ""));
   const [discountedPrice, setDiscountedPrice] = useState(
@@ -93,6 +98,7 @@ function ProductFormModal({
       title: title.trim(),
       description: description.trim() || undefined,
       categoryId,
+      supplierId: supplierId || null,
       storeName: storeName.trim() || undefined,
       price: Number(price),
       discountedPrice: discountedPrice ? Number(discountedPrice) : undefined,
@@ -169,6 +175,21 @@ function ProductFormModal({
                 maxLength={160}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-500">Supplier</span>
+              <select
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="">No supplier</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-500">Stock</span>
@@ -270,10 +291,13 @@ function ProductFormModal({
 export default function ProductsManagementPage() {
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkSupplierId, setBulkSupplierId] = useState("");
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState("");
@@ -283,6 +307,12 @@ export default function ProductsManagementPage() {
     listCategories({ sortBy: "name", sortOrder: "asc" })
       .then(setCategories)
       .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
+    listSuppliers({ sortBy: "name", sortOrder: "asc" })
+      .then(setSuppliers)
+      .catch(() => setSuppliers([]));
   }, []);
 
   const load = useCallback(async () => {
@@ -295,6 +325,9 @@ export default function ProductsManagementPage() {
         limit: 50,
       });
       setProducts(res.data);
+      setSelectedIds((ids) =>
+        ids.filter((id) => res.data.some((product) => product.id === id)),
+      );
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setProducts([]);
@@ -319,6 +352,30 @@ export default function ProductsManagementPage() {
     }),
     [products],
   );
+
+  const visibleProductIds = products
+    .map((product) => product.id)
+    .filter(Boolean) as string[];
+  const allVisibleSelected =
+    visibleProductIds.length > 0 &&
+    visibleProductIds.every((id) => selectedIds.includes(id));
+
+  function toggleSelected(productId?: string) {
+    if (!productId) return;
+    setSelectedIds((ids) =>
+      ids.includes(productId)
+        ? ids.filter((id) => id !== productId)
+        : [...ids, productId],
+    );
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((ids) =>
+      allVisibleSelected
+        ? ids.filter((id) => !visibleProductIds.includes(id))
+        : Array.from(new Set([...ids, ...visibleProductIds])),
+    );
+  }
 
   async function handleSubmit(input: ProductInput) {
     if (!editing) return;
@@ -402,6 +459,22 @@ export default function ProductsManagementPage() {
     }
   }
 
+  async function handleBulkSupplier() {
+    if (selectedIds.length === 0) return;
+    setBusyId("bulk-supplier");
+    setError("");
+    try {
+      await assignProductsToSupplier(selectedIds, bulkSupplierId || null);
+      setSelectedIds([]);
+      setBulkSupplierId("");
+      await load();
+    } catch {
+      setError("Could not assign supplier to selected products.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       <Topbar title="Product Management" />
@@ -453,12 +526,55 @@ export default function ProductsManagementPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            {selectedIds.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-3">
+                <p className="text-sm font-medium text-slate-700">
+                  {selectedIds.length} selected
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <select
+                    value={bulkSupplierId}
+                    onChange={(e) => setBulkSupplierId(e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                  >
+                    <option value="">No supplier</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleBulkSupplier}
+                    disabled={busyId === "bulk-supplier"}
+                    className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {busyId === "bulk-supplier" ? "Assigning..." : "Assign Supplier"}
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds([])}
+                    className="rounded-lg border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+            <table className="w-full min-w-[1200px] text-left text-sm">
               <thead className="border-y border-slate-100 bg-slate-50/60 text-xs font-medium text-slate-400">
                 <tr>
+                  <th className="px-6 py-3 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                  </th>
                   <th className="px-6 py-3 font-medium">No.</th>
                   <th className="px-3 py-3 font-medium">Product</th>
                   <th className="px-3 py-3 font-medium">Category</th>
+                  <th className="px-3 py-3 font-medium">Supplier</th>
                   <th className="px-3 py-3 font-medium">Price</th>
                   <th className="px-3 py-3 font-medium">Stock</th>
                   <th className="px-3 py-3 font-medium">Visible</th>
@@ -469,12 +585,23 @@ export default function ProductsManagementPage() {
               <tbody className="divide-y divide-slate-100">
                 {products.map((product, index) => (
                   <tr key={product.id ?? product.slug} className="hover:bg-slate-50">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={!!product.id && selectedIds.includes(product.id)}
+                        onChange={() => toggleSelected(product.id)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                    </td>
                     <td className="px-6 py-4 text-slate-500">{index + 1}.</td>
                     <td className="px-3 py-4">
                       <div className="font-semibold text-slate-900">{product.title}</div>
                       <div className="text-xs text-slate-400">{product.slug}</div>
                     </td>
                     <td className="px-3 py-4 text-slate-500">{product.category.name}</td>
+                    <td className="px-3 py-4 text-slate-500">
+                      {product.supplier?.name || "-"}
+                    </td>
                     <td className="px-3 py-4">
                       <div className="font-semibold text-slate-900">
                         {formatMoney(product.discountedPrice ?? product.price)}
@@ -570,6 +697,7 @@ export default function ProductsManagementPage() {
         <ProductFormModal
           state={editing}
           categories={categories}
+          suppliers={suppliers}
           busy={formBusy}
           error={formError}
           onClose={() => setEditing(null)}
