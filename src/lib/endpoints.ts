@@ -7,6 +7,7 @@ import type {
   ApiCart,
   ApiManagedCart,
   ApiCourier,
+  ApiCustomerLookup,
   ApiProduct,
   ApiRider,
   ApiSupplier,
@@ -70,6 +71,45 @@ export function cancelCourier(courierId: string, reason?: string) {
   return apiFetch<ApiCourier>(`/v1/couriers/${courierId}/cancel`, {
     method: "POST",
     body: { reason },
+  });
+}
+
+export type AdminOrderInput = {
+  customer: {
+    id?: string;
+    name: string;
+    contact: string;
+    email?: string;
+  };
+  address: {
+    id?: string;
+    fullName: string;
+    phone: string;
+    addressLine: string;
+    city: string;
+    stateProvince: string;
+    country: string;
+    postalCode: string;
+    deliveryInstructions?: string;
+  };
+  items: {
+    productId: string;
+    variationOptionId?: string;
+    price: number;
+    quantity: number;
+  }[];
+  notes?: string;
+};
+
+export function lookupCustomerByContact(contact: string) {
+  const qs = new URLSearchParams({ contact });
+  return apiFetch<ApiCustomerLookup>(`/v1/couriers/customers/lookup?${qs}`);
+}
+
+export function createAdminOrder(input: AdminOrderInput) {
+  return apiFetch<ApiCourier>("/v1/couriers/admin-orders", {
+    method: "POST",
+    body: input,
   });
 }
 

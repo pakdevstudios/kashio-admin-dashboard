@@ -27,10 +27,47 @@ export type ApiCourier = {
   dropAddress: string;
   createdAt: string;
   customer?: { id: string; name: string; phone: string | null } | null;
+  orderItems?: ApiCourierOrderItem[];
   rider?: {
     id: string;
     user: { name: string; phone: string | null; email: string };
   } | null;
+};
+
+export type ApiAddress = {
+  id: string;
+  userId?: string;
+  fullName: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  stateProvince: string;
+  country: string;
+  postalCode: string;
+  deliveryInstructions: string | null;
+  isDefault?: boolean;
+};
+
+export type ApiCourierOrderItem = {
+  id: string;
+  courierId: string;
+  productId: string;
+  variationOptionId: string | null;
+  productName: string;
+  selectedVariant: string | null;
+  price: number;
+  quantity: number;
+};
+
+export type ApiCustomerLookup = {
+  exists: boolean;
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+  } | null;
+  address: ApiAddress | null;
 };
 
 export type ApiRider = {
