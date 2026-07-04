@@ -47,6 +47,13 @@ type OrderItemDraft = {
   quantity: string;
 };
 
+const emptyOrderItem = (): OrderItemDraft => ({
+  productId: "",
+  variationOptionId: "",
+  price: "",
+  quantity: "1",
+});
+
 const emptyAddress = (contact = "", name = "") => ({
   fullName: name,
   phone: contact,
@@ -88,13 +95,20 @@ function CreateOrderModal({
   const [address, setAddress] = useState(emptyAddress());
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
-  const [items, setItems] = useState<OrderItemDraft[]>([
-    { productId: "", variationOptionId: "", price: "", quantity: "1" },
-  ]);
+  const [items, setItems] = useState<OrderItemDraft[]>([emptyOrderItem()]);
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (!open) return;
+    setContact("");
+    setLookup(null);
+    setLookupLoading(false);
+    setCustomerName("");
+    setCustomerEmail("");
+    setAddressId(undefined);
+    setAddress(emptyAddress());
+    setItems([emptyOrderItem()]);
+    setNotes("");
     document.body.style.overflow = "hidden";
     setProductsLoading(true);
     listManagedProducts({ limit: 100, sortBy: "title", sortOrder: "asc" })
@@ -324,7 +338,7 @@ function CreateOrderModal({
                     onClick={() =>
                       setItems((current) => [
                         ...current,
-                        { productId: "", variationOptionId: "", price: "", quantity: "1" },
+                        emptyOrderItem(),
                       ])
                     }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-600"
