@@ -5,7 +5,7 @@
 // transparently refreshes once on a 401 (mirrors the mobile app's behaviour).
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 
 const TOKEN_KEY = "kashio_admin_token";
 const REFRESH_KEY = "kashio_admin_refresh";
@@ -49,14 +49,21 @@ type FetchOptions = {
 };
 
 async function rawFetch(path: string, opts: FetchOptions): Promise<Response> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const isFormData = typeof FormData !== "undefined" && opts.body instanceof FormData;
+  const headers: Record<string, string> = isFormData
+    ? {}
+    : { "Content-Type": "application/json" };
+  let body: BodyInit | undefined;
+  if (opts.body !== undefined) {
+    body = isFormData ? (opts.body as FormData) : JSON.stringify(opts.body);
+  }
   if (opts.auth !== false && tokenStore.token) {
     headers.Authorization = `Bearer ${tokenStore.token}`;
   }
   return fetch(`${API_BASE_URL}${path}`, {
     method: opts.method ?? "GET",
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body,
   });
 }
 

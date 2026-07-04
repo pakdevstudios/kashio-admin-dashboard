@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Topbar from "@/components/Topbar";
 import StatusBadge from "@/components/StatusBadge";
 import { ApiError } from "@/lib/api";
@@ -13,6 +13,7 @@ import {
   listSuppliers,
   updateProduct,
   updateProductAvailability,
+  uploadProductImage,
   type ProductInput,
 } from "@/lib/endpoints";
 import type {
@@ -20,7 +21,6 @@ import type {
   ApiProduct,
   ApiProductVariationOption,
   ApiSupplier,
-  VariationSelectionType,
 } from "@/lib/types";
 
 type EditingState =
@@ -34,83 +34,62 @@ function formatMoney(value: number) {
 type VariationDraft = {
   id?: string;
   name: string;
-  sku: string;
   price: string;
   salePrice: string;
   stockQuantity: string;
-  isActive: boolean;
-  isDefault: boolean;
   minQuantity: string;
   maxQuantity: string;
-  displayOrder: string;
-  imageUrl: string;
 };
 
 type ImageDraft = {
+  id: string;
   url: string;
-  altText: string;
+  previewUrl: string;
+  uploading: boolean;
+  error: string;
   isPrimary: boolean;
 };
 
-type FrequentlyBoughtDraft = {
-  id?: string;
-  relatedProductId: string;
-  isDefault: boolean;
-  isActive: boolean;
-  minQuantity: string;
-  maxQuantity: string;
-  displayOrder: string;
-};
+function imageId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function optionDraft(option?: Partial<ApiProductVariationOption>, index = 0): VariationDraft {
   return {
     id: option?.id,
     name: option?.name ?? "",
-    sku: option?.sku ?? "",
     price: String(option?.price ?? ""),
     salePrice:
       option?.salePrice !== null && option?.salePrice !== undefined
         ? String(option.salePrice)
         : "",
     stockQuantity: String(option?.stockQuantity ?? 0),
-    isActive: option?.isActive ?? true,
-    isDefault: option?.isDefault ?? index === 0,
     minQuantity: String(option?.minQuantity ?? 1),
     maxQuantity: String(option?.maxQuantity ?? 99),
-    displayOrder: String(option?.displayOrder ?? index),
-    imageUrl: option?.imageUrl ?? "",
-  };
-}
-
-function relatedDraft(
-  item?: NonNullable<ApiProduct["frequentlyBoughtTogether"]>[number],
-  index = 0,
-): FrequentlyBoughtDraft {
-  return {
-    id: item?.id,
-    relatedProductId: item?.productId ?? item?.relatedProductId ?? "",
-    isDefault: item?.isDefault ?? false,
-    isActive: item?.isActive ?? true,
-    minQuantity: String(item?.minQuantity ?? 1),
-    maxQuantity: String(item?.maxQuantity ?? 99),
-    displayOrder: String(item?.displayOrder ?? index),
   };
 }
 
 function imageDrafts(product?: ApiProduct): ImageDraft[] {
-  if (!product?.images.length) return [{ url: "", altText: "", isPrimary: true }];
-  return product.images.map((image, index) => ({
-    url: image.url,
-    altText: image.altText ?? "",
-    isPrimary: image.isPrimary || index === 0,
-  }));
+  if (!product?.images.length) return [];
+  return [...product.images]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((image) => ({
+      id: image.id ?? imageId(),
+      url: image.url,
+      previewUrl: "",
+      uploading: false,
+      error: "",
+      isPrimary: image.isPrimary,
+    }));
 }
 
 function ProductFormModal({
   state,
   categories,
   suppliers,
-  products,
   busy,
   error,
   onClose,
@@ -119,7 +98,6 @@ function ProductFormModal({
   state: EditingState;
   categories: ApiCategory[];
   suppliers: ApiSupplier[];
-  products: ApiProduct[];
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -137,21 +115,11 @@ function ProductFormModal({
     state.product?.isAvailable ?? true,
   );
   const [images, setImages] = useState<ImageDraft[]>(imageDrafts(state.product));
-  const [variationLabel, setVariationLabel] = useState(
-    state.product?.variationConfig?.label ?? "Variation",
-  );
-  const [variationSelectionType, setVariationSelectionType] =
-    useState<VariationSelectionType>(
-      state.product?.variationConfig?.selectionType ?? "SINGLE",
-    );
+  const [uploadingImageCount, setUploadingImageCount] = useState(0);
+  const [imageUploadError, setImageUploadError] = useState("");
+  const previewUrlsRef = useRef<Set<string>>(new Set());
   const [isVariationRequired, setIsVariationRequired] = useState(
     state.product?.variationConfig?.required ?? true,
-  );
-  const [minVariationSelections, setMinVariationSelections] = useState(
-    String(state.product?.variationConfig?.minSelections ?? 1),
-  );
-  const [maxVariationSelections, setMaxVariationSelections] = useState(
-    String(state.product?.variationConfig?.maxSelections ?? 1),
   );
   const [allowSpecialInstructions, setAllowSpecialInstructions] = useState(
     state.product?.specialInstructions?.allowed ?? false,
@@ -168,13 +136,6 @@ function ProductFormModal({
       ? state.product.variationOptions.map(optionDraft)
       : [optionDraft()],
   );
-  const [frequentlyBoughtItems, setFrequentlyBoughtItems] = useState<
-    FrequentlyBoughtDraft[]
-  >(
-    state.product?.frequentlyBoughtTogether?.length
-      ? state.product.frequentlyBoughtTogether.map(relatedDraft)
-      : [],
-  );
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -184,10 +145,23 @@ function ProductFormModal({
   }, []);
 
   useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+      previewUrlsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!categoryId && categories[0]?.id) {
       setCategoryId(categories[0].id);
     }
   }, [categories, categoryId]);
+
+  useEffect(() => {
+    if (!images.some((image) => image.error)) {
+      setImageUploadError("");
+    }
+  }, [images]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -195,29 +169,34 @@ function ProductFormModal({
       .map((option, index) => ({
         id: option.id,
         name: option.name.trim(),
-        sku: option.sku.trim() || undefined,
         price: Number(option.price),
         salePrice: option.salePrice ? Number(option.salePrice) : undefined,
-        stockQuantity: Number(option.stockQuantity),
-        isActive: option.isActive,
-        isDefault: option.isDefault,
+        stockQuantity: Number(option.stockQuantity || 0),
+        isActive: true,
+        isDefault: index === 0,
         minQuantity: Number(option.minQuantity),
         maxQuantity: Number(option.maxQuantity),
-        displayOrder: Number(option.displayOrder || index),
-        imageUrl: option.imageUrl.trim() || undefined,
+        displayOrder: index,
       }))
-      .filter((option) => option.name || option.price || option.isActive);
-    const normalizedRelated = frequentlyBoughtItems
-      .map((item, index) => ({
-        id: item.id,
-        relatedProductId: item.relatedProductId,
-        isDefault: item.isDefault,
-        isActive: item.isActive,
-        minQuantity: Number(item.minQuantity),
-        maxQuantity: Number(item.maxQuantity),
-        displayOrder: Number(item.displayOrder || index),
+      .filter((option) => option.name || option.price);
+    const normalizedImages = images
+      .map((image, index) => ({
+        url: image.url.trim(),
+        sortOrder: index,
+        isPrimary: image.isPrimary,
       }))
-      .filter((item) => item.relatedProductId);
+      .filter((image) => image.url);
+    if (normalizedImages.length && !normalizedImages.some((image) => image.isPrimary)) {
+      normalizedImages[0] = { ...normalizedImages[0], isPrimary: true };
+    }
+    console.info("[product-image-upload] saving image URLs in product payload", {
+      count: normalizedImages.length,
+      images: normalizedImages.map((image) => ({
+        url: image.url,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+      })),
+    });
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
@@ -227,66 +206,139 @@ function ProductFormModal({
       productType: "VARIABLE",
       isActive,
       isAvailable,
-      images: images
-        .map((image, index) => ({
-          url: image.url.trim(),
-          altText: image.altText.trim() || undefined,
-          sortOrder: index,
-          isPrimary: image.isPrimary,
-        }))
-        .filter((image) => image.url),
-      variationLabel: variationLabel.trim() || "Variation",
-      variationSelectionType,
+      images: normalizedImages,
+      variationLabel: "Variation",
       isVariationRequired,
-      minVariationSelections: Number(minVariationSelections),
-      maxVariationSelections: Number(maxVariationSelections),
+      minVariationSelections: 1,
+      maxVariationSelections: 1,
       allowSpecialInstructions,
       specialInstructionsPlaceholder: allowSpecialInstructions
         ? specialInstructionsPlaceholder.trim() || undefined
         : undefined,
       specialInstructionsMaxLength: Number(specialInstructionsMaxLength),
       variationOptions: normalizedOptions,
-      frequentlyBoughtItems: normalizedRelated,
+      frequentlyBoughtItems: [],
     });
   }
 
   const modalTitle = state.mode === "create" ? "Create Product" : "Update Product";
   const hasCategories = categories.length > 0;
-  const selectableProducts = products.filter(
-    (product) => product.id && product.id !== state.product?.id,
-  );
+  const hasImageUploadErrors = images.some((image) => image.error);
 
   function updateVariation(index: number, patch: Partial<VariationDraft>) {
     setVariationOptions((items) =>
-      items.map((item, itemIndex) => {
-        if (itemIndex !== index) return item;
-        const next = { ...item, ...patch };
-        if (patch.isDefault) {
-          return { ...next, isActive: true };
-        }
-        return next;
-      }).map((item, itemIndex) =>
-        patch.isDefault && itemIndex !== index ? { ...item, isDefault: false } : item,
-      ),
-    );
-  }
-
-  function updateRelated(index: number, patch: Partial<FrequentlyBoughtDraft>) {
-    setFrequentlyBoughtItems((items) =>
       items.map((item, itemIndex) =>
         itemIndex === index ? { ...item, ...patch } : item,
       ),
     );
   }
 
+  function revokePreview(previewUrl: string) {
+    if (!previewUrl || !previewUrlsRef.current.has(previewUrl)) return;
+    URL.revokeObjectURL(previewUrl);
+    previewUrlsRef.current.delete(previewUrl);
+  }
+
+  function removeImage(id: string) {
+    setImages((items) => {
+      const target = items.find((item) => item.id === id);
+      if (target?.previewUrl) {
+        revokePreview(target.previewUrl);
+      }
+      const next = items.filter((item) => item.id !== id);
+      if (next.length && target?.isPrimary && !next.some((item) => item.isPrimary)) {
+        next[0] = { ...next[0], isPrimary: true };
+      }
+      console.info("[product-image-upload] image removed from form state", {
+        imageId: id,
+        remainingCount: next.length,
+      });
+      return next;
+    });
+  }
+
+  function selectCoverImage(id: string) {
+    setImages((items) =>
+      items.map((item) => ({ ...item, isPrimary: item.id === id })),
+    );
+  }
+
+  async function handleImageFile(file?: File | null) {
+    if (!file) {
+      console.info("[product-image-upload] no file selected");
+      return;
+    }
+    console.info("[product-image-upload] file selected", {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    });
+    setImageUploadError("");
+    setUploadingImageCount((count) => count + 1);
+
+    const previewUrl = URL.createObjectURL(file);
+    const id = imageId();
+    previewUrlsRef.current.add(previewUrl);
+    console.info("[product-image-upload] preview generated", {
+      imageId: id,
+      filename: file.name,
+      previewUrl,
+    });
+
+    setImages((items) => {
+      const isPrimary = !items.some((image) => image.url || image.previewUrl);
+      return [
+        ...items,
+        {
+          id,
+          url: "",
+          previewUrl,
+          uploading: true,
+          error: "",
+          isPrimary,
+        },
+      ];
+    });
+
+    try {
+      const uploaded = await uploadProductImage(file);
+      console.info("[product-image-upload] saving final image URL in form state", {
+        imageId: id,
+        finalUrl: uploaded.url,
+      });
+      setImages((items) =>
+        items.map((item) =>
+          item.id === id
+            ? { ...item, url: uploaded.url, previewUrl: "", uploading: false, error: "" }
+            : item,
+        ),
+      );
+      revokePreview(previewUrl);
+    } catch (err) {
+      console.error("[product-image-upload] upload flow failed", {
+        imageId: id,
+        error: err,
+      });
+      const message = err instanceof Error ? err.message : "Image upload failed.";
+      setImages((items) =>
+        items.map((item) =>
+          item.id === id ? { ...item, uploading: false, error: message } : item,
+        ),
+      );
+      setImageUploadError(message);
+    } finally {
+      setUploadingImageCount((count) => Math.max(0, count - 1));
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={modalTitle}
-        className="relative z-10 max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+        className="relative z-10 max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
       >
         <div className="flex items-start justify-between">
           <h2 className="text-xl font-bold text-slate-900">{modalTitle}</h2>
@@ -360,59 +412,16 @@ function ProductFormModal({
             </label>
           </div>
 
-          <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <label className="block md:col-span-2">
-                  <span className="mb-1 block text-xs font-medium text-slate-500">Variation label</span>
-                  <input
-                    value={variationLabel}
-                    onChange={(e) => setVariationLabel(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-slate-500">Selection</span>
-                  <select
-                    value={variationSelectionType}
-                    onChange={(e) =>
-                      setVariationSelectionType(e.target.value as VariationSelectionType)
-                    }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  >
-                    <option value="SINGLE">Single</option>
-                    <option value="MULTIPLE">Multiple</option>
-                  </select>
-                </label>
-                <label className="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={isVariationRequired}
-                    onChange={(e) => setIsVariationRequired(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Required
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-slate-500">Min selections</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={minVariationSelections}
-                    onChange={(e) => setMinVariationSelections(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-slate-500">Max selections</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={maxVariationSelections}
-                    onChange={(e) => setMaxVariationSelections(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  />
-                </label>
-              </div>
+          <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={isVariationRequired}
+                onChange={(e) => setIsVariationRequired(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Required
+            </label>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -428,12 +437,12 @@ function ProductFormModal({
                   </button>
                 </div>
                 {variationOptions.map((option, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 rounded-lg bg-white p-3">
+                  <div key={index} className="grid grid-cols-1 gap-2 rounded-lg bg-white p-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(96px,0.8fr)_minmax(96px,0.8fr)_auto]">
                     <input
                       value={option.name}
                       onChange={(e) => updateVariation(index, { name: e.target.value })}
                       placeholder="Name"
-                      className="col-span-12 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-3"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
                     />
                     <input
                       value={option.price}
@@ -441,7 +450,7 @@ function ProductFormModal({
                       type="number"
                       min="0"
                       placeholder="Price"
-                      className="col-span-6 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-2"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
                     />
                     <input
                       value={option.salePrice}
@@ -449,136 +458,20 @@ function ProductFormModal({
                       type="number"
                       min="0"
                       placeholder="Sale"
-                      className="col-span-6 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-2"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
                     />
-                    <input
-                      value={option.stockQuantity}
-                      onChange={(e) => updateVariation(index, { stockQuantity: e.target.value })}
-                      type="number"
-                      min="0"
-                      placeholder="Stock"
-                      className="col-span-6 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-1"
-                    />
-                    <input
-                      value={option.displayOrder}
-                      onChange={(e) => updateVariation(index, { displayOrder: e.target.value })}
-                      type="number"
-                      min="0"
-                      placeholder="Order"
-                      className="col-span-6 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-1"
-                    />
-                    <label className="col-span-6 flex items-center gap-2 text-xs font-medium text-slate-600 md:col-span-1">
-                      <input
-                        type="checkbox"
-                        checked={option.isDefault}
-                        onChange={(e) => updateVariation(index, { isDefault: e.target.checked })}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      Default
-                    </label>
-                    <label className="col-span-6 flex items-center gap-2 text-xs font-medium text-slate-600 md:col-span-1">
-                      <input
-                        type="checkbox"
-                        checked={option.isActive}
-                        onChange={(e) => updateVariation(index, { isActive: e.target.checked })}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      Active
-                    </label>
                     <button
                       type="button"
                       onClick={() =>
                         setVariationOptions((items) => items.filter((_, itemIndex) => itemIndex !== index))
                       }
-                      className="col-span-12 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 md:col-span-1"
+                      className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                     >
-                      Remove
+                      Delete
                     </button>
                   </div>
                 ))}
               </div>
-          </section>
-
-          <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Frequently bought together</h3>
-              <button
-                type="button"
-                onClick={() =>
-                  setFrequentlyBoughtItems((items) => [...items, relatedDraft(undefined, items.length)])
-                }
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Add item
-              </button>
-            </div>
-            {frequentlyBoughtItems.length === 0 && (
-              <p className="text-sm text-slate-400">No related items assigned.</p>
-            )}
-            {frequentlyBoughtItems.map((item, index) => (
-              <div key={index} className="grid grid-cols-12 gap-2">
-                <select
-                  value={item.relatedProductId}
-                  onChange={(e) => updateRelated(index, { relatedProductId: e.target.value })}
-                  className="col-span-12 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-5"
-                >
-                  <option value="">Select product</option>
-                  {selectableProducts.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.title}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={item.minQuantity}
-                  onChange={(e) => updateRelated(index, { minQuantity: e.target.value })}
-                  type="number"
-                  min="1"
-                  className="col-span-3 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-1"
-                />
-                <input
-                  value={item.maxQuantity}
-                  onChange={(e) => updateRelated(index, { maxQuantity: e.target.value })}
-                  type="number"
-                  min="1"
-                  className="col-span-3 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-1"
-                />
-                <input
-                  value={item.displayOrder}
-                  onChange={(e) => updateRelated(index, { displayOrder: e.target.value })}
-                  type="number"
-                  min="0"
-                  className="col-span-3 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-1"
-                />
-                <label className="col-span-3 flex items-center gap-2 text-xs font-medium text-slate-600 md:col-span-1">
-                  <input
-                    type="checkbox"
-                    checked={item.isDefault}
-                    onChange={(e) => updateRelated(index, { isDefault: e.target.checked })}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Default
-                </label>
-                <label className="col-span-4 flex items-center gap-2 text-xs font-medium text-slate-600 md:col-span-1">
-                  <input
-                    type="checkbox"
-                    checked={item.isActive}
-                    onChange={(e) => updateRelated(index, { isActive: e.target.checked })}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Active
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFrequentlyBoughtItems((items) => items.filter((_, itemIndex) => itemIndex !== index))
-                  }
-                  className="col-span-8 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 md:col-span-2"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
           </section>
 
           <section className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-2">
@@ -626,86 +519,65 @@ function ProductFormModal({
           </label>
 
           <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Product images</h3>
-              <button
-                type="button"
-                onClick={() =>
-                  setImages((items) => [
-                    ...items,
-                    { url: "", altText: "", isPrimary: items.length === 0 },
-                  ])
-                }
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Add image
-              </button>
-            </div>
-            {images.map((image, index) => (
-              <div key={index} className="grid grid-cols-12 gap-2 rounded-lg bg-slate-50 p-3">
-                <div className="col-span-12 h-20 w-20 overflow-hidden rounded-lg border border-slate-200 bg-white md:col-span-2">
-                  {image.url ? (
-                    <img src={image.url} alt="" className="h-full w-full object-cover" />
-                  ) : null}
+            <h3 className="text-sm font-semibold text-slate-900">Product images</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {images.map((image) => (
+                <div key={image.id} className="space-y-2 rounded-lg bg-slate-50 p-3">
+                  <div className="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {image.previewUrl || image.url ? (
+                      <img
+                        src={image.previewUrl || image.url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                      <input
+                        type="radio"
+                        name="product-cover-image"
+                        checked={image.isPrimary}
+                        disabled={image.uploading || !image.url}
+                        onChange={() => selectCoverImage(image.id)}
+                        className="h-4 w-4 border-slate-300"
+                      />
+                      Cover
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeImage(image.id)}
+                      disabled={image.uploading}
+                      className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  {image.uploading && (
+                    <p className="text-xs font-medium text-slate-500">Uploading...</p>
+                  )}
+                  {image.error && (
+                    <p className="text-xs text-red-600">{image.error}</p>
+                  )}
                 </div>
+              ))}
+              <label className="flex min-h-40 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                Upload image
                 <input
-                  value={image.url}
-                  onChange={(e) =>
-                    setImages((items) =>
-                      items.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, url: e.target.value } : item,
-                      ),
-                    )
-                  }
-                  placeholder="Image URL"
-                  className="col-span-12 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-5"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.currentTarget.files?.[0];
+                    e.currentTarget.value = "";
+                    handleImageFile(file);
+                  }}
                 />
-                <input
-                  value={image.altText}
-                  onChange={(e) =>
-                    setImages((items) =>
-                      items.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, altText: e.target.value } : item,
-                      ),
-                    )
-                  }
-                  placeholder="Alt text"
-                  className="col-span-12 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 md:col-span-3"
-                />
-                <label className="col-span-6 flex items-center gap-2 text-xs font-medium text-slate-600 md:col-span-1">
-                  <input
-                    type="radio"
-                    name="cover-image"
-                    checked={image.isPrimary}
-                    onChange={() =>
-                      setImages((items) =>
-                        items.map((item, itemIndex) => ({
-                          ...item,
-                          isPrimary: itemIndex === index,
-                        })),
-                      )
-                    }
-                    className="h-4 w-4 border-slate-300"
-                  />
-                  Cover
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setImages((items) => {
-                      const next = items.filter((_, itemIndex) => itemIndex !== index);
-                      if (next.length && !next.some((item) => item.isPrimary)) {
-                        next[0] = { ...next[0], isPrimary: true };
-                      }
-                      return next;
-                    })
-                  }
-                  className="col-span-6 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 md:col-span-1"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+              </label>
+            </div>
+            {imageUploadError && (
+              <p className="text-sm text-red-600">{imageUploadError}</p>
+            )}
           </section>
 
           <div className="flex flex-wrap gap-4">
@@ -739,7 +611,7 @@ function ProductFormModal({
             </button>
             <button
               type="submit"
-              disabled={busy || !hasCategories}
+              disabled={busy || !hasCategories || uploadingImageCount > 0 || hasImageUploadErrors}
               className="rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
               {busy ? "Saving..." : "Save"}
@@ -1145,7 +1017,6 @@ export default function ProductsManagementPage() {
           state={editing}
           categories={categories}
           suppliers={suppliers}
-          products={products}
           busy={formBusy}
           error={formError}
           onClose={() => setEditing(null)}

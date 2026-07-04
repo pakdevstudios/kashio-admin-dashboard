@@ -384,6 +384,76 @@ export function deleteProduct(id: string) {
   });
 }
 
+export async function uploadProductImage(file: File) {
+  console.info("[product-image-upload] requesting presigned URL", {
+    filename: file.name,
+    contentType: file.type,
+    size: file.size,
+  });
+  const presigned = await apiFetch<{
+    uploadUrl: string;
+    url: string;
+    headers?: Record<string, string>;
+    region?: string;
+    bucket?: string;
+    pathStyle?: boolean;
+    expiresIn?: number;
+  }>("/v1/uploads/images/presign", {
+    method: "POST",
+    body: {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    },
+  });
+  console.info("[product-image-upload] received presigned URL", {
+    finalUrl: presigned.url,
+    uploadHost: new URL(presigned.uploadUrl).host,
+    hasHeaders: !!presigned.headers,
+    region: presigned.region,
+    bucket: presigned.bucket,
+    pathStyle: presigned.pathStyle,
+    expiresIn: presigned.expiresIn,
+  });
+  console.info("[product-image-upload] starting S3 upload", {
+    finalUrl: presigned.url,
+    contentType: file.type,
+    explicitHeaders: presigned.headers ?? null,
+  });
+  const uploadBody = new Blob([file], { type: "" });
+  let res: Response;
+  try {
+    res = await fetch(presigned.uploadUrl, {
+      method: "PUT",
+      headers: presigned.headers,
+      body: uploadBody,
+    });
+  } catch (err) {
+    console.error("[product-image-upload] S3 upload fetch failed", err);
+    throw new ApiError(
+      "Image upload could not reach S3. Check the bucket CORS policy and generated S3 host.",
+      0,
+    );
+  }
+  console.info("[product-image-upload] S3 upload response", {
+    status: res.status,
+    ok: res.ok,
+    finalUrl: presigned.url,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.error("[product-image-upload] S3 upload rejected", {
+      status: res.status,
+      body: text,
+    });
+    throw new ApiError(`Image upload failed (${res.status})`, res.status);
+  }
+  console.info("[product-image-upload] final image URL ready", {
+    finalUrl: presigned.url,
+  });
+  return { url: presigned.url };
+}
+
 export function addProductImage(productId: string, input: ProductImageInput) {
   return apiFetch<ApiProduct["images"][number]>(`/v1/products/${productId}/images`, {
     method: "POST",
