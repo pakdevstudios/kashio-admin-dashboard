@@ -158,13 +158,13 @@ function QuantityControl({
   onDecrease: () => void;
 }) {
   return (
-    <div className="flex items-center overflow-hidden rounded-lg border border-slate-200">
+    <div className="flex items-center overflow-hidden rounded-lg border border-slate-300">
       <button
         type="button"
         disabled={busy}
         onClick={onDecrease}
         aria-label={`Decrease ${label}`}
-        className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+        className="flex h-8 w-8 items-center justify-center border-r border-slate-300 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
       >
         -
       </button>
@@ -176,7 +176,7 @@ function QuantityControl({
         disabled={busy || outOfStock}
         onClick={onIncrease}
         aria-label={`Increase ${label}`}
-        className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+        className="flex h-8 w-8 items-center justify-center border-l border-slate-300 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
       >
         +
       </button>
@@ -1013,53 +1013,78 @@ export default function CreateOrderWizardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {cartItems.map((item) => (
-                          <tr key={item.id}>
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-slate-900">{item.productName}</p>
-                              {item.selectedVariant && (
-                                <p className="text-xs text-slate-400">{item.selectedVariant}</p>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">{formatRs(item.price)}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={itemBusyId === item.id || item.quantity <= 1}
-                                  onClick={() => handleQty(item.id, item.quantity - 1)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
-                                >
-                                  −
-                                </button>
-                                <span className="w-8 text-center font-semibold text-slate-900">
-                                  {item.quantity}
-                                </span>
+                        {cartItems.map((item) => {
+                          const itemImage = item.product?.images?.[0]?.url ?? null;
+                          return (
+                            <tr key={item.id}>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                    {itemImage ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={itemImage}
+                                        alt={item.productName}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    ) : (
+                                      <svg className="h-5 w-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m16.5 0V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 003.75 6v1.5m16.5 0h-16.5" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-slate-900">{item.productName}</p>
+                                    {item.selectedVariant && (
+                                      <p className="text-xs text-slate-400">{item.selectedVariant}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{formatRs(item.price)}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={itemBusyId === item.id || item.quantity <= 1}
+                                    onClick={() => handleQty(item.id, item.quantity - 1)}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-300 font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="w-8 text-center font-semibold text-slate-900">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={itemBusyId === item.id}
+                                    onClick={() => handleQty(item.id, item.quantity + 1)}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-300 font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-900">
+                                {formatRs(item.price * item.quantity)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
                                 <button
                                   type="button"
                                   disabled={itemBusyId === item.id}
-                                  onClick={() => handleQty(item.id, item.quantity + 1)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600 disabled:cursor-not-allowed"
+                                  onClick={() => handleRemove(item.id)}
+                                  title="Remove item"
+                                  aria-label={`Remove ${item.productName}`}
+                                  className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-200"
                                 >
-                                  +
+                                  <svg className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                  </svg>
                                 </button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-slate-900">
-                              {formatRs(item.price * item.quantity)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                disabled={itemBusyId === item.id}
-                                onClick={() => handleRemove(item.id)}
-                                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50"
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

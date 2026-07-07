@@ -57,6 +57,8 @@ export type ApiCourierOrderItem = {
   selectedVariant: string | null;
   price: number;
   quantity: number;
+  /** Cover image shipped with the line for cart/order thumbnails. */
+  product?: { images?: { url: string }[] } | null;
 };
 
 export type ApiCustomerLookup = {
