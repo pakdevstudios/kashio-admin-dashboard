@@ -34,12 +34,14 @@ function formatDate(iso: string) {
 
 function CategoryFormModal({
   state,
+  roots,
   busy,
   error,
   onClose,
   onSubmit,
 }: {
   state: EditingState;
+  roots: ApiCategory[];
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -49,6 +51,7 @@ function CategoryFormModal({
   const [description, setDescription] = useState(
     state.category?.description ?? "",
   );
+  const [parentId, setParentId] = useState(state.category?.parentId ?? "");
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -62,6 +65,7 @@ function CategoryFormModal({
     onSubmit({
       name: name.trim(),
       description: description.trim() || undefined,
+      parentId: parentId || null,
     });
   }
 
@@ -107,8 +111,28 @@ function CategoryFormModal({
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-              placeholder="Documents"
+              placeholder="e.g. Fast Food, Tablets"
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Belongs to
+            </label>
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="">Top level (a main section)</option>
+              {roots
+                .filter((root) => root.id !== state.category?.id)
+                .map((root) => (
+                  <option key={root.id} value={root.id}>
+                    {root.name}
+                  </option>
+                ))}
+            </select>
           </div>
 
           <div>
@@ -180,6 +204,17 @@ export default function CategoriesPage() {
     }
   }, [filter, query, sortBy]);
 
+  // Top-level sections for the "Belongs to" picker (unfiltered).
+  const [roots, setRoots] = useState<ApiCategory[]>([]);
+  const loadRoots = useCallback(() => {
+    listCategories({ rootOnly: true, sortBy: "name", sortOrder: "asc" })
+      .then(setRoots)
+      .catch(() => setRoots([]));
+  }, []);
+  useEffect(() => {
+    loadRoots();
+  }, [loadRoots]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -210,6 +245,7 @@ export default function CategoriesPage() {
       }
       setEditing(null);
       await load();
+      loadRoots();
     } catch (err) {
       setFormError(
         err instanceof ApiError ? err.message : "Could not save category.",
@@ -312,7 +348,7 @@ export default function CategoriesPage() {
                 <tr>
                   <th className="px-6 py-3 font-medium">No.</th>
                   <th className="px-3 py-3 font-medium">Category</th>
-                  <th className="px-3 py-3 font-medium">Slug</th>
+                  <th className="px-3 py-3 font-medium">Belongs to</th>
                   <th className="px-3 py-3 font-medium">Description</th>
                   <th className="px-3 py-3 font-medium">Created</th>
                   <th className="px-3 py-3 font-medium">Status</th>
@@ -328,7 +364,15 @@ export default function CategoriesPage() {
                         {category.name}
                       </div>
                     </td>
-                    <td className="px-3 py-4 text-slate-500">{category.slug}</td>
+                    <td className="px-3 py-4 text-slate-500">
+                      {category.parent ? (
+                        category.parent.name
+                      ) : (
+                        <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">
+                          Top level
+                        </span>
+                      )}
+                    </td>
                     <td className="max-w-sm px-3 py-4 text-slate-500">
                       <span className="line-clamp-2">
                         {category.description || "-"}
@@ -392,6 +436,7 @@ export default function CategoriesPage() {
       {editing && (
         <CategoryFormModal
           state={editing}
+          roots={roots}
           busy={formBusy}
           error={formError}
           onClose={() => setEditing(null)}

@@ -89,7 +89,18 @@ export type ApiCategory = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** null = top-level vertical (Food, Medicine). */
+  parentId?: string | null;
+  parent?: { id: string; name: string; slug: string } | null;
 };
+
+/** Groups a flat category list into the two-level tree used by pickers. */
+export function groupCategories(categories: ApiCategory[]) {
+  const roots = categories.filter((c) => !c.parentId);
+  const childrenOf = (rootId: string) =>
+    categories.filter((c) => c.parentId === rootId);
+  return { roots, childrenOf };
+}
 
 export type ApiBanner = {
   id: string;
@@ -191,6 +202,8 @@ export type ApiProduct = {
     slug: string;
     name: string;
     description?: string | null;
+    parentId?: string | null;
+    parent?: { id: string; name: string; slug: string } | null;
   };
   supplier?: {
     id: string;

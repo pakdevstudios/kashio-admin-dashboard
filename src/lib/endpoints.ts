@@ -183,6 +183,8 @@ export function createRider(input: CreateRiderInput) {
 export function listCategories(params?: {
   search?: string;
   isActive?: boolean;
+  parentId?: string;
+  rootOnly?: boolean;
   sortBy?: "name" | "createdAt";
   sortOrder?: "asc" | "desc";
 }) {
@@ -191,6 +193,8 @@ export function listCategories(params?: {
   if (typeof params?.isActive === "boolean") {
     qs.set("isActive", String(params.isActive));
   }
+  if (params?.parentId) qs.set("parentId", params.parentId);
+  if (params?.rootOnly) qs.set("rootOnly", "true");
   if (params?.sortBy) qs.set("sortBy", params.sortBy);
   if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
   const query = qs.toString();
@@ -200,6 +204,7 @@ export function listCategories(params?: {
 export type CategoryInput = {
   name: string;
   description?: string | null;
+  parentId?: string | null;
 };
 
 export function createCategory(input: CategoryInput) {

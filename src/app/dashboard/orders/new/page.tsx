@@ -25,6 +25,7 @@ import {
   updateDraftItem,
 } from "@/lib/endpoints";
 import {
+  groupCategories,
   statusLabel,
   type ApiAddress,
   type ApiCategory,
@@ -240,6 +241,7 @@ export default function CreateOrderWizardPage() {
 
   // --- Step 2 state ---
   const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [rootId, setRootId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -468,6 +470,14 @@ export default function CreateOrderWizardPage() {
     setStepError("");
   }
 
+  const { rootCategories, subCategories } = useMemo(() => {
+    const { roots, childrenOf } = groupCategories(categories);
+    return {
+      rootCategories: roots,
+      subCategories: rootId ? childrenOf(rootId) : [],
+    };
+  }, [categories, rootId]);
+
   const addressSummary = useMemo(
     () =>
       [address.addressLine, address.city, address.stateProvince, address.postalCode, address.country]
@@ -620,39 +630,78 @@ export default function CreateOrderWizardPage() {
                     </div>
                   </div>
 
-                  {/* Category chips */}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCategoryId("");
-                        setPage(1);
-                      }}
-                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-                        categoryId === ""
-                          ? "bg-brand-600 text-white"
-                          : "border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600"
-                      }`}
-                    >
-                      All
-                    </button>
-                    {categories.map((category) => (
+                  {/* Category chips: sections (Food/Medicine) + sub-categories */}
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        key={category.id}
                         type="button"
                         onClick={() => {
-                          setCategoryId(category.id);
+                          setRootId("");
+                          setCategoryId("");
                           setPage(1);
                         }}
                         className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-                          categoryId === category.id
+                          rootId === ""
                             ? "bg-brand-600 text-white"
                             : "border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600"
                         }`}
                       >
-                        {category.name}
+                        All
                       </button>
-                    ))}
+                      {rootCategories.map((root) => (
+                        <button
+                          key={root.id}
+                          type="button"
+                          onClick={() => {
+                            setRootId(root.id);
+                            setCategoryId(root.id); // roll-up: matches all sub-categories
+                            setPage(1);
+                          }}
+                          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+                            rootId === root.id
+                              ? "bg-brand-600 text-white"
+                              : "border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600"
+                          }`}
+                        >
+                          {root.name}
+                        </button>
+                      ))}
+                    </div>
+                    {rootId && subCategories.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCategoryId(rootId);
+                            setPage(1);
+                          }}
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                            categoryId === rootId
+                              ? "bg-brand-100 text-brand-700"
+                              : "border border-slate-200 text-slate-500 hover:text-brand-600"
+                          }`}
+                        >
+                          Everything
+                        </button>
+                        {subCategories.map((sub) => (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => {
+                              setCategoryId(sub.id);
+                              setPage(1);
+                            }}
+                            className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                              categoryId === sub.id
+                                ? "bg-brand-100 text-brand-700"
+                                : "border border-slate-200 text-slate-500 hover:text-brand-600"
+                            }`}
+                          >
+                            {sub.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
