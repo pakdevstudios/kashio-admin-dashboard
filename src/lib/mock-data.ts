@@ -32,6 +32,10 @@ export type Delivery = {
   date: string;
   status: DeliveryStatus;
   rider: string | null;
+  /** Human order code, e.g. DLV-1042. */
+  code?: string;
+  /** What the order contains, e.g. "3 items" or "Parcel". */
+  summary?: string;
 };
 
 const ADDR = "H89, St21, District Courts, Kashmir";

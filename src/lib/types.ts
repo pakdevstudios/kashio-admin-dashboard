@@ -377,6 +377,8 @@ function formatDate(iso: string): string {
 
 // ---- Mappers: backend -> dashboard UI ----------------------------------
 export function courierToDelivery(c: ApiCourier): Delivery {
+  const itemCount =
+    c.orderItems?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
   return {
     id: c.id,
     customer: c.customer?.name ?? c.dropName,
@@ -387,6 +389,11 @@ export function courierToDelivery(c: ApiCourier): Delivery {
     date: formatDate(c.createdAt),
     status: statusLabel(c.status) as DeliveryStatus,
     rider: c.rider?.user.name ?? null,
+    code: c.code,
+    summary:
+      itemCount > 0
+        ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
+        : c.categories.join(", ") || "Parcel",
   };
 }
 

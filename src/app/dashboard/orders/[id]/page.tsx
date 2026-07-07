@@ -154,7 +154,17 @@ export default function OrderDetailsPage({
 
   const customer = courier.customer?.name ?? courier.dropName;
   const activeIndex = STAGE[courier.status];
-  const product = courier.categories.join(", ") || "Parcel";
+  const items = courier.orderItems ?? [];
+  const isProductOrder = items.length > 0;
+  const itemsTotal = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
+  const placedDate = new Date(courier.createdAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
   return (
     <>
@@ -205,59 +215,136 @@ export default function OrderDetailsPage({
           <div className="rounded-2xl border border-slate-200 bg-white p-6">
             <h2 className="text-base font-bold text-slate-900">Order Summary</h2>
             <div className="mt-4 space-y-3.5">
-              <SummaryRow label="User Name" value={customer} />
-              <SummaryRow label="Contact" value={courier.dropContact} />
-              <SummaryRow label="Pick Up From" value={courier.pickupAddress} />
+              <SummaryRow label="Order" value={courier.code} />
+              <SummaryRow label="Placed on" value={placedDate} />
+              <SummaryRow
+                label="Type"
+                value={isProductOrder ? "Product order" : "Parcel delivery"}
+              />
+              {!isProductOrder && (
+                <SummaryRow label="Pick Up From" value={courier.pickupAddress} />
+              )}
               <SummaryRow label="Deliver To" value={courier.dropAddress} />
               <SummaryRow
                 label="Rider"
-                value={courier.rider?.user.name ?? "Not assigned"}
+                value={
+                  courier.rider
+                    ? `${courier.rider.user.name}${courier.rider.user.phone ? ` · ${courier.rider.user.phone}` : ""}`
+                    : "Not assigned"
+                }
               />
+              {courier.notes && <SummaryRow label="Notes" value={courier.notes} />}
             </div>
           </div>
         </div>
 
-        {/* Parcel & Price */}
+        {/* Items & Price */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="text-base font-bold text-slate-900">Parcel &amp; Price</h2>
+          <h2 className="text-base font-bold text-slate-900">
+            {isProductOrder ? `Items (${items.length})` : "Parcel & Price"}
+          </h2>
           <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs font-medium text-slate-400">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Parcel</th>
-                  <th className="px-5 py-3 font-medium">Notes</th>
-                  <th className="px-5 py-3 font-medium">Total</th>
-                </tr>
+                {isProductOrder ? (
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Item</th>
+                    <th className="px-5 py-3 font-medium">Price</th>
+                    <th className="px-5 py-3 font-medium">Qty</th>
+                    <th className="px-5 py-3 text-right font-medium">Subtotal</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Parcel</th>
+                    <th className="px-5 py-3 font-medium">Notes</th>
+                    <th className="px-5 py-3 text-right font-medium">Total</th>
+                  </tr>
+                )}
               </thead>
-              <tbody>
-                <tr>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-11 items-center justify-center rounded-md bg-gradient-to-br from-amber-100 to-amber-200 text-lg">
-                        📦
+              <tbody className="divide-y divide-slate-100">
+                {isProductOrder ? (
+                  items.map((item) => {
+                    const itemImage = item.product?.images?.[0]?.url ?? null;
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                              {itemImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={itemImage}
+                                  alt={item.productName}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-lg">🛍️</span>
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {item.productName}
+                              </p>
+                              {item.selectedVariant && (
+                                <p className="text-xs text-slate-400">
+                                  {item.selectedVariant}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          Rs. {item.price.toLocaleString("en-PK")}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">{item.quantity}</td>
+                        <td className="px-5 py-4 text-right font-medium text-slate-900">
+                          Rs. {(item.price * item.quantity).toLocaleString("en-PK")}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-11 items-center justify-center rounded-md bg-gradient-to-br from-amber-100 to-amber-200 text-lg">
+                          📦
+                        </div>
+                        <span className="font-medium text-slate-900">
+                          {courier.categories.join(", ") || "Parcel"}
+                        </span>
                       </div>
-                      <span className="font-medium text-slate-900">{product}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-slate-700">
-                    {courier.notes || "—"}
-                  </td>
-                  <td className="px-5 py-4 font-medium text-slate-900">
-                    Rs. {courier.price}
-                  </td>
-                </tr>
+                    </td>
+                    <td className="px-5 py-4 text-slate-700">
+                      {courier.notes || "—"}
+                    </td>
+                    <td className="px-5 py-4 text-right font-medium text-slate-900">
+                      Rs. {courier.price.toLocaleString("en-PK")}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 px-5 py-4">
+              <span className="text-sm font-medium text-slate-600">
+                {isProductOrder ? "Items Total" : "Parcel Price"}
+              </span>
+              <span className="text-sm font-bold text-slate-900">
+                Rs. {(isProductOrder ? itemsTotal : courier.price).toLocaleString("en-PK")}
+              </span>
+            </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-5 py-4">
               <span className="text-sm font-medium text-slate-600">Delivery Fee</span>
-              <span className="text-sm font-bold text-slate-900">Rs. {courier.price}</span>
+              <span className="text-sm font-bold text-slate-900">Rs. 0</span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-brand-50 px-5 py-4">
-              <span className="text-sm font-medium text-brand-700">Total Price</span>
-              <span className="text-sm font-bold text-brand-700">Rs. {courier.price}</span>
+              <span className="text-sm font-medium text-brand-700">Total</span>
+              <span className="text-sm font-bold text-brand-700">
+                Rs. {courier.price.toLocaleString("en-PK")}
+              </span>
             </div>
           </div>
         </div>

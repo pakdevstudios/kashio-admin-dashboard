@@ -206,11 +206,11 @@ export default function OrdersPage() {
               <thead className="border-b border-slate-100 bg-slate-50/60 text-xs font-medium text-slate-400">
                 <tr>
                   <th className="px-6 py-3 font-medium">No.</th>
+                  <th className="px-3 py-3 font-medium">Order</th>
                   <th className="px-3 py-3 font-medium">Customer Name</th>
                   <th className="px-3 py-3 font-medium">Contact</th>
                   <th className="px-3 py-3 font-medium">Price</th>
-                  <th className="px-3 py-3 font-medium">From Location</th>
-                  <th className="px-3 py-3 font-medium">To Location</th>
+                  <th className="px-3 py-3 font-medium">Deliver To</th>
                   <th className="px-3 py-3 font-medium">Date</th>
                   <th className="px-3 py-3 font-medium">Status</th>
                   <th className="px-3 py-3 font-medium">Riders</th>
@@ -225,6 +225,12 @@ export default function OrdersPage() {
                   >
                     <td className="px-6 py-4 text-slate-500">{i + 1}.</td>
                     <td className="px-3 py-4">
+                      <div className="font-semibold text-slate-900">
+                        {d.code ?? "—"}
+                      </div>
+                      <div className="text-xs text-slate-400">{d.summary}</div>
+                    </td>
+                    <td className="px-3 py-4">
                       <div className="flex items-center gap-3">
                         <Avatar name={d.customer} />
                         <span className="font-medium text-slate-900">
@@ -236,7 +242,6 @@ export default function OrdersPage() {
                     <td className="px-3 py-4 font-medium text-slate-900">
                       Rs. {d.price}
                     </td>
-                    <td className="px-3 py-4 text-slate-500">{d.from}</td>
                     <td className="px-3 py-4 text-slate-500">{d.to}</td>
                     <td className="px-3 py-4 text-slate-500">{d.date}</td>
                     <td className="px-3 py-4">
