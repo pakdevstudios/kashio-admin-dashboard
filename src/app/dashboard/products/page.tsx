@@ -1369,12 +1369,6 @@ function ProductDetailsModal({
                   <StatusBadge status={product.isActive ? "Online" : "Offline"} />
                 </div>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs font-medium text-slate-500">Orders</p>
-                <div className="mt-1">
-                  <StatusBadge status={product.isAvailable ? "Online" : "Offline"} />
-                </div>
-              </div>
             </div>
 
             <div>
@@ -1502,7 +1496,6 @@ export default function ProductsManagementPage() {
     () => ({
       total: products.length,
       active: products.filter((product) => product.isActive).length,
-      unavailable: products.filter((product) => !product.isAvailable).length,
       out: products.filter((product) => product.stockQuantity <= 0).length,
     }),
     [products],
@@ -1593,7 +1586,7 @@ export default function ProductsManagementPage() {
             <div>
               <h2 className="text-lg font-bold text-slate-900">Products List</h2>
               <p className="mt-1 text-sm text-slate-500">
-                {counts.total} total · {counts.active} visible · {counts.unavailable} not accepting orders · {counts.out} out of stock
+                {counts.total} total · {counts.active} visible · {counts.out} out of stock
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -1655,7 +1648,6 @@ export default function ProductsManagementPage() {
                   <th className="px-3 py-3 font-medium">Price</th>
                   <th className="px-3 py-3 font-medium">Stock</th>
                   <th className="px-3 py-3 font-medium">Visible</th>
-                  <th className="px-3 py-3 font-medium">Orders</th>
                   <th className="px-6 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -1727,11 +1719,6 @@ export default function ProductsManagementPage() {
                       </td>
                       <td className="px-3 py-4">
                         <StatusBadge status={product.isActive ? "Online" : "Offline"} />
-                      </td>
-                      <td className="px-3 py-4">
-                        <StatusBadge
-                          status={product.isAvailable ? "Online" : "Offline"}
-                        />
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-end gap-2">
