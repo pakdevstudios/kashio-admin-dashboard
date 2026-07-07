@@ -136,6 +136,8 @@ const ITEM_FORM_TEXT = {
     stockNegative: "Stock cannot be negative.",
     optionNameRequired: "Option name is required.",
     optionRequired: "Please add at least one option.",
+    photoUploading: "Photo is still uploading. Please wait.",
+    photoFailed: "Remove failed photo or upload it again.",
     saveFailed: "Could not save item. Please try again.",
   },
   actions: {
@@ -515,6 +517,31 @@ function ProductFormModal({
   const hasValidOption =
     filledOptions.length > 0 &&
     optionErrors.every((row) => !row.name && !row.price && !row.discount && !row.stock);
+  const optionFormError = hasOptions
+    ? filledOptions.length === 0
+      ? ITEM_FORM_TEXT.errors.optionRequired
+      : optionErrors.find((row) => row.name || row.price || row.discount || row.stock)
+          ?.name ||
+        optionErrors.find((row) => row.name || row.price || row.discount || row.stock)
+          ?.price ||
+        optionErrors.find((row) => row.name || row.price || row.discount || row.stock)
+          ?.discount ||
+        optionErrors.find((row) => row.name || row.price || row.discount || row.stock)
+          ?.stock ||
+        ""
+    : "";
+  const photoError = uploadingImageCount
+    ? ITEM_FORM_TEXT.errors.photoUploading
+    : hasImageUploadErrors
+      ? ITEM_FORM_TEXT.errors.photoFailed
+      : "";
+  const firstInvalidMessage =
+    nameError ||
+    categoryError ||
+    photoError ||
+    (hasOptions
+      ? optionFormError
+      : simplePriceError || simpleDiscountError || simpleStockError);
   const formIsValid =
     !nameError &&
     !categoryError &&
@@ -1053,8 +1080,8 @@ function ProductFormModal({
                     </div>
                   ))}
                 </div>
-                {!hasValidOption && (
-                  <p className={errorCls}>{ITEM_FORM_TEXT.errors.optionRequired}</p>
+                {optionFormError && (
+                  <p className={errorCls}>{optionFormError}</p>
                 )}
                 <button
                   type="button"
@@ -1132,7 +1159,15 @@ function ProductFormModal({
             </label>
           </section>
 
-          <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:-mx-6 sm:px-6">
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+              {!formIsValid && firstInvalidMessage && (
+                <p className="text-sm font-medium text-amber-700">
+                  To continue: {firstInvalidMessage}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -1147,6 +1182,7 @@ function ProductFormModal({
             >
               {busy ? ITEM_FORM_TEXT.actions.saving : saveButtonLabel}
             </button>
+            </div>
           </div>
         </form>
       </div>
