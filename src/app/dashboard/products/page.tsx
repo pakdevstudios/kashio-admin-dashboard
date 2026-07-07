@@ -56,6 +56,106 @@ function suggestOptionKind(
 // The auto-created option name for items sold as-is (no visible options).
 const SIMPLE_OPTION_NAME = "Standard";
 
+const ITEM_FORM_TEXT = {
+  header: {
+    createTitle: "Add New Item",
+    editTitle: "Edit Item",
+    subtitle: "Add the item details customers will see in the app.",
+  },
+  photos: {
+    title: "Item Photo",
+    helper: "Add a clear photo. Customers see this first.",
+    upload: "Add photo",
+    change: "Change photo",
+    remove: "Remove",
+    main: "Main photo",
+    uploading: "Uploading...",
+    failed: "Photo upload failed.",
+  },
+  basic: {
+    title: "Basic Information",
+    nameLabel: "Item name *",
+    namePlaceholder: "Example: Chicken Burger, Rice, Panadol",
+    nameHelper: "Use the name customers know.",
+    descriptionLabel: "Item description",
+    descriptionPlaceholder: "Example: Fresh chicken burger with fries",
+    descriptionHelper: "Tell customers what this item is.",
+  },
+  type: {
+    title: "Item Type",
+    helper: "Choose where this item should appear.",
+    food: "Food",
+    medicine: "Medicine",
+    categoryLabel: "Category *",
+    categoryPlaceholder: "Select category",
+    noCategory: "No category found. Please add a category first.",
+  },
+  price: {
+    title: "Price & Stock",
+    regularLabel: "Regular price *",
+    regularPlaceholder: "0",
+    regularHelper: "Original selling price.",
+    discountLabel: "Discount price",
+    discountPlaceholder: "Leave empty if no discount",
+    discountHelper: "Only add this if the item is on sale.",
+    stockLabel: "Available stock",
+    stockPlaceholder: "0",
+    stockHelper: "How many items are available now?",
+    optionsHelper: "Add price and stock for each option below.",
+  },
+  options: {
+    checkbox: "This item has options",
+    helper: "Use this for sizes, packs, flavors, or strengths.",
+    example: "Small / Medium / Large, 500ml / 1L, 250mg / 500mg",
+    add: "Add option",
+    optionName: "Option name",
+    kindLabel: "What kind of options?",
+    regularPrice: "Regular price",
+    discountPrice: "Discount price",
+    stock: "Stock",
+    first: "Show first",
+  },
+  note: {
+    checkbox: "Allow customer note",
+    helper: "Customers can add instructions, like allergies or preparation notes.",
+    placeholderLabel: "Hint shown to customers",
+  },
+  availability: {
+    title: "Availability",
+    active: "Show this item in the app",
+    activeHelper: "Turn off if you want to hide this item from customers.",
+    available: "Accept orders for this item",
+    availableHelper: "Turn off if this item is temporarily unavailable.",
+  },
+  errors: {
+    nameRequired: "Item name is required.",
+    categoryRequired: "Please select a category.",
+    priceRequired: "Price is required.",
+    priceGreaterThanZero: "Price must be greater than 0.",
+    discountLessThanPrice: "Discount price must be less than regular price.",
+    stockNegative: "Stock cannot be negative.",
+    optionNameRequired: "Option name is required.",
+    optionRequired: "Please add at least one option.",
+    saveFailed: "Could not save item. Please try again.",
+  },
+  actions: {
+    cancel: "Cancel",
+    create: "Add item",
+    update: "Update item",
+    saving: "Saving...",
+    close: "Close",
+  },
+  messages: {
+    added: "Item added successfully.",
+    updated: "Item updated successfully.",
+  },
+} as const;
+
+const ITEM_TYPE_CHOICES = [
+  { key: "food", label: ITEM_FORM_TEXT.type.food },
+  { key: "medicine", label: ITEM_FORM_TEXT.type.medicine },
+] as const;
+
 type VariationDraft = {
   id?: string;
   name: string;
@@ -91,7 +191,8 @@ function optionDraft(option?: Partial<ApiProductVariationOption>): VariationDraf
       option?.salePrice !== null && option?.salePrice !== undefined
         ? String(option.salePrice)
         : "",
-    stockQuantity: String(option?.stockQuantity ?? 0),
+    stockQuantity:
+      option?.stockQuantity !== undefined ? String(option.stockQuantity) : "",
     minQuantity: String(option?.minQuantity ?? 1),
     maxQuantity: String(option?.maxQuantity ?? 99),
   };
@@ -116,6 +217,17 @@ function imageDrafts(product?: ApiProduct): ImageDraft[] {
 function isSimpleProduct(product?: ApiProduct) {
   const options = product?.variationOptions ?? [];
   return options.length === 1 && options[0].name === SIMPLE_OPTION_NAME;
+}
+
+function matchesItemType(category: ApiCategory, key: "food" | "medicine") {
+  return (
+    category.slug?.toLowerCase() === key ||
+    category.name.trim().toLowerCase() === key
+  );
+}
+
+function numberFromInput(value: string) {
+  return value.trim() ? Number(value) : NaN;
 }
 
 function ProductFormModal({
@@ -144,8 +256,12 @@ function ProductFormModal({
   const initialSub = editingProduct
     ? categories.find((c) => c.id === editingProduct.category.id)
     : undefined;
+  const firstItemTypeRoot =
+    roots.find((root) => matchesItemType(root, "food")) ??
+    roots.find((root) => matchesItemType(root, "medicine")) ??
+    roots[0];
   const initialVerticalId =
-    initialSub?.parentId ?? initialSub?.id ?? roots[0]?.id ?? "";
+    initialSub?.parentId ?? initialSub?.id ?? firstItemTypeRoot?.id ?? "";
 
   const [title, setTitle] = useState(editingProduct?.title ?? "");
   const [description, setDescription] = useState(editingProduct?.description ?? "");
@@ -189,7 +305,14 @@ function ProductFormModal({
     return idx >= 0 ? idx : 0;
   });
 
+  const itemTypeOptions = ITEM_TYPE_CHOICES.map((choice) => ({
+    ...choice,
+    root: roots.find((root) => matchesItemType(root, choice.key)),
+  }));
   const subCategories = verticalId ? childrenOf(verticalId) : [];
+  const categoryOptions = subCategories.filter(
+    (category) => category.isActive || category.id === categoryId,
+  );
   const selectedSub = categories.find((c) => c.id === categoryId);
   const selectedVertical = categories.find((c) => c.id === verticalId);
   const suggestedKind = suggestOptionKind(selectedSub, selectedVertical);
@@ -223,10 +346,13 @@ function ProductFormModal({
   useEffect(() => {
     if (!verticalId) return;
     const children = childrenOf(verticalId);
-    if (children.length === 0) {
-      setCategoryId(verticalId);
-    } else if (!children.some((c) => c.id === categoryId)) {
-      setCategoryId(children[0].id);
+    const availableChildren = children.filter(
+      (child) => child.isActive || child.id === categoryId,
+    );
+    if (!availableChildren.length) {
+      setCategoryId("");
+    } else if (!availableChildren.some((c) => c.id === categoryId)) {
+      setCategoryId(availableChildren[0].id);
     }
   }, [verticalId, categoryId, childrenOf]);
 
@@ -238,6 +364,7 @@ function ProductFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!formIsValid) return;
 
     const normalizedOptions = hasOptions
       ? options
@@ -311,9 +438,93 @@ function ProductFormModal({
     });
   }
 
-  const modalTitle = state.mode === "create" ? "Add Item" : "Edit Item";
-  const hasCategories = roots.length > 0;
+  const modalTitle =
+    state.mode === "create"
+      ? ITEM_FORM_TEXT.header.createTitle
+      : ITEM_FORM_TEXT.header.editTitle;
+  const hasCategories = categoryOptions.length > 0;
   const hasImageUploadErrors = images.some((image) => image.error);
+  const simplePriceValue = numberFromInput(simplePrice);
+  const simpleSalePriceValue = numberFromInput(simpleSalePrice);
+  const simpleStockValue = numberFromInput(simpleStock || "0");
+  const filledOptions = options.filter(
+    (option) =>
+      option.name.trim() ||
+      option.price.trim() ||
+      option.salePrice.trim() ||
+      option.stockQuantity.trim(),
+  );
+
+  const nameError = title.trim() ? "" : ITEM_FORM_TEXT.errors.nameRequired;
+  const categoryError =
+    categoryId && categoryOptions.some((category) => category.id === categoryId)
+      ? ""
+      : ITEM_FORM_TEXT.errors.categoryRequired;
+  const simplePriceError = !simplePrice.trim()
+    ? ITEM_FORM_TEXT.errors.priceRequired
+    : !Number.isFinite(simplePriceValue) || simplePriceValue <= 0
+      ? ITEM_FORM_TEXT.errors.priceGreaterThanZero
+      : "";
+  const simpleDiscountError =
+    simpleSalePrice.trim() &&
+    Number.isFinite(simpleSalePriceValue) &&
+    Number.isFinite(simplePriceValue) &&
+    simpleSalePriceValue >= simplePriceValue
+      ? ITEM_FORM_TEXT.errors.discountLessThanPrice
+      : "";
+  const simpleStockError =
+    Number.isFinite(simpleStockValue) && simpleStockValue < 0
+      ? ITEM_FORM_TEXT.errors.stockNegative
+      : "";
+
+  const optionErrors = options.map((option) => {
+    const priceValue = numberFromInput(option.price);
+    const salePriceValue = numberFromInput(option.salePrice);
+    const stockValue = numberFromInput(option.stockQuantity || "0");
+    const rowHasAnyValue =
+      option.name.trim() ||
+      option.price.trim() ||
+      option.salePrice.trim() ||
+      option.stockQuantity.trim();
+
+    return {
+      name:
+        rowHasAnyValue && !option.name.trim()
+          ? ITEM_FORM_TEXT.errors.optionNameRequired
+          : "",
+      price:
+        rowHasAnyValue && !option.price.trim()
+          ? ITEM_FORM_TEXT.errors.priceRequired
+          : rowHasAnyValue && (!Number.isFinite(priceValue) || priceValue <= 0)
+            ? ITEM_FORM_TEXT.errors.priceGreaterThanZero
+            : "",
+      discount:
+        option.salePrice.trim() &&
+        Number.isFinite(salePriceValue) &&
+        Number.isFinite(priceValue) &&
+        salePriceValue >= priceValue
+          ? ITEM_FORM_TEXT.errors.discountLessThanPrice
+          : "",
+      stock:
+        Number.isFinite(stockValue) && stockValue < 0
+          ? ITEM_FORM_TEXT.errors.stockNegative
+          : "",
+    };
+  });
+
+  const hasValidOption =
+    filledOptions.length > 0 &&
+    optionErrors.every((row) => !row.name && !row.price && !row.discount && !row.stock);
+  const formIsValid =
+    !nameError &&
+    !categoryError &&
+    !hasImageUploadErrors &&
+    uploadingImageCount === 0 &&
+    (hasOptions
+      ? hasValidOption
+      : !simplePriceError && !simpleDiscountError && !simpleStockError);
+  const saveButtonLabel =
+    state.mode === "create" ? ITEM_FORM_TEXT.actions.create : ITEM_FORM_TEXT.actions.update;
 
   function updateOption(index: number, patch: Partial<VariationDraft>) {
     setOptions((items) =>
@@ -356,16 +567,23 @@ function ProductFormModal({
     );
   }
 
-  async function handleImageFile(file?: File | null) {
+  async function handleImageFile(file?: File | null, replaceId?: string) {
     if (!file) return;
     setImageUploadError("");
     setUploadingImageCount((count) => count + 1);
 
     const previewUrl = URL.createObjectURL(file);
-    const id = imageId();
+    const id = replaceId ?? imageId();
     previewUrlsRef.current.add(previewUrl);
 
     setImages((items) => {
+      if (replaceId) {
+        return items.map((item) =>
+          item.id === replaceId
+            ? { ...item, previewUrl, uploading: true, error: "" }
+            : item,
+        );
+      }
       const isPrimary = !items.some((image) => image.url || image.previewUrl);
       return [
         ...items,
@@ -384,12 +602,16 @@ function ProductFormModal({
       );
       revokePreview(previewUrl);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Photo upload failed.";
+      const message =
+        err instanceof Error ? err.message : ITEM_FORM_TEXT.photos.failed;
       setImages((items) =>
         items.map((item) =>
-          item.id === id ? { ...item, uploading: false, error: message } : item,
+          item.id === id
+            ? { ...item, previewUrl: "", uploading: false, error: message }
+            : item,
         ),
       );
+      revokePreview(previewUrl);
       setImageUploadError(message);
     } finally {
       setUploadingImageCount((count) => Math.max(0, count - 1));
@@ -398,6 +620,9 @@ function ProductFormModal({
 
   const inputCls =
     "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  const numberInputCls = `${inputCls} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
+  const helperCls = "mt-1 text-xs text-slate-500";
+  const errorCls = "mt-1 text-xs font-medium text-red-600";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
@@ -412,12 +637,12 @@ function ProductFormModal({
           <div>
             <h2 className="text-xl font-bold text-slate-900">{modalTitle}</h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              What customers will see in the app.
+              {ITEM_FORM_TEXT.header.subtitle}
             </p>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={ITEM_FORM_TEXT.actions.close}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -436,9 +661,11 @@ function ProductFormModal({
           {/* ── Photos ──────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-xl border border-slate-200 p-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Photos</h3>
+              <h3 className="text-sm font-semibold text-slate-900">
+                {ITEM_FORM_TEXT.photos.title}
+              </h3>
               <p className="text-xs text-slate-500">
-                The main photo is what customers see first.
+                {ITEM_FORM_TEXT.photos.helper}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -454,7 +681,31 @@ function ProductFormModal({
                       />
                     ) : null}
                   </div>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="cursor-pointer rounded-lg px-2 py-1 text-xs font-semibold text-brand-600 transition hover:bg-brand-50">
+                      {ITEM_FORM_TEXT.photos.change}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                        className="hidden"
+                        disabled={image.uploading}
+                        onChange={(e) => {
+                          const file = e.currentTarget.files?.[0];
+                          e.currentTarget.value = "";
+                          handleImageFile(file, image.id);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeImage(image.id)}
+                      disabled={image.uploading}
+                      className="rounded-lg px-2 py-1 text-xs font-semibold text-red-500 transition hover:bg-red-50"
+                    >
+                      {ITEM_FORM_TEXT.photos.remove}
+                    </button>
+                  </div>
+                  {images.length > 1 && (
                     <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                       <input
                         type="radio"
@@ -464,19 +715,13 @@ function ProductFormModal({
                         onChange={() => selectCoverImage(image.id)}
                         className="h-4 w-4 border-slate-300"
                       />
-                      Main
+                      {ITEM_FORM_TEXT.photos.main}
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => removeImage(image.id)}
-                      disabled={image.uploading}
-                      className="rounded-lg px-2 py-1 text-xs font-semibold text-red-500 transition hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  )}
                   {image.uploading && (
-                    <p className="text-xs font-medium text-slate-500">Uploading…</p>
+                    <p className="text-xs font-medium text-slate-500">
+                      {ITEM_FORM_TEXT.photos.uploading}
+                    </p>
                   )}
                   {image.error && <p className="text-xs text-red-600">{image.error}</p>}
                 </div>
@@ -485,7 +730,7 @@ function ProductFormModal({
                 <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
-                Add photo
+                {ITEM_FORM_TEXT.photos.upload}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
@@ -503,148 +748,195 @@ function ProductFormModal({
             )}
           </section>
 
-          {/* ── Item details ────────────────────────────────────────── */}
+          {/* ── Basic details ───────────────────────────────────────── */}
           <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Item details</h3>
+            <h3 className="text-sm font-semibold text-slate-900">
+              {ITEM_FORM_TEXT.basic.title}
+            </h3>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-500">
-                Item name *
+                {ITEM_FORM_TEXT.basic.nameLabel}
               </span>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={160}
-                placeholder="e.g. Chicken Burger, Basmati Rice, Panadol"
+                placeholder={ITEM_FORM_TEXT.basic.namePlaceholder}
                 className={inputCls}
               />
+              <p className={helperCls}>{ITEM_FORM_TEXT.basic.nameHelper}</p>
+              {nameError && <p className={errorCls}>{nameError}</p>}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-500">
-                Description (optional)
+                {ITEM_FORM_TEXT.basic.descriptionLabel}
               </span>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 maxLength={3000}
-                placeholder="Tell customers what's in it or what it's for"
+                placeholder={ITEM_FORM_TEXT.basic.descriptionPlaceholder}
                 className={`${inputCls} resize-none`}
               />
+              <p className={helperCls}>{ITEM_FORM_TEXT.basic.descriptionHelper}</p>
             </label>
           </section>
 
-          {/* ── Where it belongs ────────────────────────────────────── */}
+          {/* ── Type and category ───────────────────────────────────── */}
           <section className="space-y-4 rounded-xl border border-slate-200 p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Where it belongs</h3>
-            {!hasCategories ? (
-              <p className="text-sm text-slate-500">
-                Create categories first (Categories page).
-              </p>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                {ITEM_FORM_TEXT.type.title}
+              </h3>
+              <p className="text-xs text-slate-500">{ITEM_FORM_TEXT.type.helper}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {itemTypeOptions.map((choice) => {
+                const disabled = !choice.root || !choice.root.isActive;
+                return (
+                  <button
+                    key={choice.key}
+                    type="button"
+                    onClick={() => {
+                      if (choice.root) setVerticalId(choice.root.id);
+                    }}
+                    disabled={disabled}
+                    className={`rounded-full px-5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                      verticalId === choice.root?.id
+                        ? "bg-brand-600 text-white"
+                        : "border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600"
+                    }`}
+                  >
+                    {choice.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {hasCategories ? (
+              <label className="block max-w-sm">
+                <span className="mb-1 block text-xs font-medium text-slate-500">
+                  {ITEM_FORM_TEXT.type.categoryLabel}
+                </span>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="" disabled>
+                    {ITEM_FORM_TEXT.type.categoryPlaceholder}
+                  </option>
+                  {categoryOptions.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                {categoryError && <p className={errorCls}>{categoryError}</p>}
+              </label>
             ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {roots
-                    .filter((root) => root.isActive)
-                    .map((root) => (
-                      <button
-                        key={root.id}
-                        type="button"
-                        onClick={() => setVerticalId(root.id)}
-                        className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
-                          verticalId === root.id
-                            ? "bg-brand-600 text-white"
-                            : "border border-slate-200 text-slate-600 hover:border-brand-500 hover:text-brand-600"
-                        }`}
-                      >
-                        {root.name}
-                      </button>
-                    ))}
-                </div>
-                {subCategories.length > 0 && (
-                  <label className="block max-w-sm">
-                    <span className="mb-1 block text-xs font-medium text-slate-500">
-                      Category
-                    </span>
-                    <select
-                      value={categoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
-                      className={inputCls}
-                    >
-                      {subCategories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                {ITEM_FORM_TEXT.type.noCategory}
+              </p>
             )}
           </section>
 
-          {/* ── Pricing & options ───────────────────────────────────── */}
+          {/* ── Price and stock ─────────────────────────────────────── */}
           <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Pricing</h3>
+            <h3 className="text-sm font-semibold text-slate-900">
+              {ITEM_FORM_TEXT.price.title}
+            </h3>
 
-            {!hasOptions && (
+            {hasOptions ? (
+              <p className="text-sm text-slate-500">
+                {ITEM_FORM_TEXT.price.optionsHelper}
+              </p>
+            ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-500">
-                    Price (Rs.) *
+                    {ITEM_FORM_TEXT.price.regularLabel}
                   </span>
-                  <input
-                    value={simplePrice}
-                    onChange={(e) => setSimplePrice(e.target.value)}
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    className={inputCls}
-                  />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                      Rs.
+                    </span>
+                    <input
+                      value={simplePrice}
+                      onChange={(e) => setSimplePrice(e.target.value)}
+                      type="number"
+                      min="0"
+                      placeholder={ITEM_FORM_TEXT.price.regularPlaceholder}
+                      className={`${numberInputCls} pl-11`}
+                    />
+                  </div>
+                  <p className={helperCls}>{ITEM_FORM_TEXT.price.regularHelper}</p>
+                  {simplePriceError && <p className={errorCls}>{simplePriceError}</p>}
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-500">
-                    Discounted price (optional)
+                    {ITEM_FORM_TEXT.price.discountLabel}
                   </span>
                   <input
                     value={simpleSalePrice}
                     onChange={(e) => setSimpleSalePrice(e.target.value)}
                     type="number"
                     min="0"
-                    placeholder="Leave empty if no discount"
-                    className={inputCls}
+                    placeholder={ITEM_FORM_TEXT.price.discountPlaceholder}
+                    className={numberInputCls}
                   />
+                  <p className={helperCls}>{ITEM_FORM_TEXT.price.discountHelper}</p>
+                  {simpleDiscountError && (
+                    <p className={errorCls}>{simpleDiscountError}</p>
+                  )}
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-500">
-                    How many in stock?
+                    {ITEM_FORM_TEXT.price.stockLabel}
                   </span>
                   <input
                     value={simpleStock}
                     onChange={(e) => setSimpleStock(e.target.value)}
                     type="number"
                     min="0"
-                    placeholder="0"
-                    className={inputCls}
+                    placeholder={ITEM_FORM_TEXT.price.stockPlaceholder}
+                    className={numberInputCls}
                   />
+                  <p className={helperCls}>{ITEM_FORM_TEXT.price.stockHelper}</p>
+                  {simpleStockError && <p className={errorCls}>{simpleStockError}</p>}
                 </label>
               </div>
             )}
 
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          </section>
+
+          {/* ── Options ────────────────────────────────────────────── */}
+          <section className="space-y-4 rounded-xl border border-slate-200 p-4">
+            <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
                 checked={hasOptions}
                 onChange={(e) => setHasOptions(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
               />
-              This item comes in different options (sizes, packs, strengths)
+              <span>
+                <span className="block">{ITEM_FORM_TEXT.options.checkbox}</span>
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  {ITEM_FORM_TEXT.options.helper}
+                </span>
+                <span className="mt-1 block text-xs font-normal text-slate-400">
+                  {ITEM_FORM_TEXT.options.example}
+                </span>
+              </span>
             </label>
 
             {hasOptions && (
               <div className="space-y-3">
                 <div>
                   <span className="mb-1.5 block text-xs font-medium text-slate-500">
-                    What kind of options?
+                    {ITEM_FORM_TEXT.options.kindLabel}
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {OPTION_KINDS.map((kind) => (
@@ -671,42 +963,74 @@ function ProductFormModal({
                   {options.map((option, index) => (
                     <div
                       key={index}
-                      className="grid grid-cols-1 items-center gap-2 rounded-lg bg-white p-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(90px,0.7fr)_minmax(90px,0.7fr)_minmax(80px,0.6fr)_auto_auto]"
+                      className="grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(110px,0.7fr)_minmax(120px,0.7fr)_minmax(90px,0.6fr)_auto_auto]"
                     >
-                      <input
-                        value={option.name}
-                        onChange={(e) => updateOption(index, { name: e.target.value })}
-                        placeholder={OPTION_KIND_HINTS[optionKind]}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
-                      />
-                      <input
-                        value={option.price}
-                        onChange={(e) => updateOption(index, { price: e.target.value })}
-                        type="number"
-                        min="0"
-                        placeholder="Price Rs."
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
-                      />
-                      <input
-                        value={option.salePrice}
-                        onChange={(e) => updateOption(index, { salePrice: e.target.value })}
-                        type="number"
-                        min="0"
-                        placeholder="Discounted"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
-                      />
-                      <input
-                        value={option.stockQuantity}
-                        onChange={(e) =>
-                          updateOption(index, { stockQuantity: e.target.value })
-                        }
-                        type="number"
-                        min="0"
-                        placeholder="In stock"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
-                      />
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-500">
+                          {ITEM_FORM_TEXT.options.optionName}
+                        </span>
+                        <input
+                          value={option.name}
+                          onChange={(e) => updateOption(index, { name: e.target.value })}
+                          placeholder={OPTION_KIND_HINTS[optionKind]}
+                          className={inputCls}
+                        />
+                        {optionErrors[index]?.name && (
+                          <p className={errorCls}>{optionErrors[index].name}</p>
+                        )}
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-500">
+                          {ITEM_FORM_TEXT.options.regularPrice}
+                        </span>
+                        <input
+                          value={option.price}
+                          onChange={(e) => updateOption(index, { price: e.target.value })}
+                          type="number"
+                          min="0"
+                          placeholder={ITEM_FORM_TEXT.price.regularPlaceholder}
+                          className={numberInputCls}
+                        />
+                        {optionErrors[index]?.price && (
+                          <p className={errorCls}>{optionErrors[index].price}</p>
+                        )}
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-500">
+                          {ITEM_FORM_TEXT.options.discountPrice}
+                        </span>
+                        <input
+                          value={option.salePrice}
+                          onChange={(e) => updateOption(index, { salePrice: e.target.value })}
+                          type="number"
+                          min="0"
+                          placeholder={ITEM_FORM_TEXT.price.discountPlaceholder}
+                          className={numberInputCls}
+                        />
+                        {optionErrors[index]?.discount && (
+                          <p className={errorCls}>{optionErrors[index].discount}</p>
+                        )}
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-500">
+                          {ITEM_FORM_TEXT.options.stock}
+                        </span>
+                        <input
+                          value={option.stockQuantity}
+                          onChange={(e) =>
+                            updateOption(index, { stockQuantity: e.target.value })
+                          }
+                          type="number"
+                          min="0"
+                          placeholder={ITEM_FORM_TEXT.price.stockPlaceholder}
+                          className={numberInputCls}
+                        />
+                        {optionErrors[index]?.stock && (
+                          <p className={errorCls}>{optionErrors[index].stock}</p>
+                        )}
+                      </label>
                       <label
-                        className="flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600"
+                        className="flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600 lg:pt-7"
                         title="Customers see this option first"
                       >
                         <input
@@ -716,45 +1040,53 @@ function ProductFormModal({
                           onChange={() => setDefaultIndex(index)}
                           className="h-4 w-4 border-slate-300"
                         />
-                        Shown first
+                        {ITEM_FORM_TEXT.options.first}
                       </label>
                       <button
                         type="button"
                         onClick={() => removeOption(index)}
                         disabled={options.length <= 1}
-                        className="rounded-lg px-2.5 py-2 text-xs font-semibold text-red-500 transition hover:bg-red-50 disabled:opacity-40"
+                        className="rounded-lg px-2.5 py-2 text-xs font-semibold text-red-500 transition hover:bg-red-50 disabled:opacity-40 lg:mt-6"
                       >
-                        Remove
+                        {ITEM_FORM_TEXT.photos.remove}
                       </button>
                     </div>
                   ))}
                 </div>
+                {!hasValidOption && (
+                  <p className={errorCls}>{ITEM_FORM_TEXT.errors.optionRequired}</p>
+                )}
                 <button
                   type="button"
                   onClick={() => setOptions((items) => [...items, optionDraft()])}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-600"
                 >
-                  + Add another option
+                  + {ITEM_FORM_TEXT.options.add}
                 </button>
               </div>
             )}
           </section>
 
-          {/* ── Special requests ────────────────────────────────────── */}
+          {/* ── Customer note ───────────────────────────────────────── */}
           <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
                 checked={allowSpecialInstructions}
                 onChange={(e) => setAllowSpecialInstructions(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
               />
-              Let customers add a note with this item (e.g. allergies, preparation)
+              <span>
+                <span className="block">{ITEM_FORM_TEXT.note.checkbox}</span>
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  {ITEM_FORM_TEXT.note.helper}
+                </span>
+              </span>
             </label>
             {allowSpecialInstructions && (
               <label className="block max-w-md">
                 <span className="mb-1 block text-xs font-medium text-slate-500">
-                  Hint shown to customers
+                  {ITEM_FORM_TEXT.note.placeholderLabel}
                 </span>
                 <input
                   value={specialInstructionsPlaceholder}
@@ -765,42 +1097,55 @@ function ProductFormModal({
             )}
           </section>
 
-          {/* ── Visibility ──────────────────────────────────────────── */}
-          <div className="flex flex-wrap gap-6">
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          {/* ── Availability ───────────────────────────────────────── */}
+          <section className="space-y-3 rounded-xl border border-slate-200 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">
+              {ITEM_FORM_TEXT.availability.title}
+            </h3>
+            <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
               />
-              Show in the app
+              <span>
+                <span className="block">{ITEM_FORM_TEXT.availability.active}</span>
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  {ITEM_FORM_TEXT.availability.activeHelper}
+                </span>
+              </span>
             </label>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <label className="flex items-start gap-3 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
                 checked={isAvailable}
                 onChange={(e) => setIsAvailable(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
               />
-              Accepting orders
+              <span>
+                <span className="block">{ITEM_FORM_TEXT.availability.available}</span>
+                <span className="mt-1 block text-xs font-normal text-slate-500">
+                  {ITEM_FORM_TEXT.availability.availableHelper}
+                </span>
+              </span>
             </label>
-          </div>
+          </section>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:-mx-6 sm:px-6">
             <button
               type="button"
               onClick={onClose}
               className="rounded-lg border border-slate-300 px-6 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Cancel
+              {ITEM_FORM_TEXT.actions.cancel}
             </button>
             <button
               type="submit"
-              disabled={busy || !hasCategories || uploadingImageCount > 0 || hasImageUploadErrors}
+              disabled={busy || !formIsValid}
               className="rounded-lg bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
             >
-              {busy ? "Saving…" : "Save item"}
+              {busy ? ITEM_FORM_TEXT.actions.saving : saveButtonLabel}
             </button>
           </div>
         </form>
@@ -820,6 +1165,7 @@ export default function ProductsManagementPage() {
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -881,39 +1227,41 @@ export default function ProductsManagementPage() {
   async function handleSubmit(input: ProductInput) {
     if (!editing) return;
     if (!input.title) {
-      setFormError("Give the item a name.");
+      setFormError(ITEM_FORM_TEXT.errors.nameRequired);
       return;
     }
     if (!input.categoryId) {
-      setFormError("Pick where this item belongs.");
+      setFormError(ITEM_FORM_TEXT.errors.categoryRequired);
       return;
     }
     const activeOptions = input.variationOptions?.filter((option) => option.isActive) ?? [];
     if (activeOptions.length === 0) {
-      setFormError("Set a price for this item.");
+      setFormError(ITEM_FORM_TEXT.errors.priceRequired);
       return;
     }
     if (activeOptions.some((option) => !option.name || !Number.isFinite(option.price))) {
-      setFormError("Every option needs a name and a price.");
+      setFormError(ITEM_FORM_TEXT.errors.priceRequired);
       return;
     }
 
     setFormBusy(true);
     setFormError("");
+    setSuccessMessage("");
     try {
+      const wasCreating = editing.mode === "create";
       if (editing.mode === "create") {
         await createProduct(input);
       } else if (editing.product.id) {
         await updateProduct(editing.product.id, input);
       }
       setEditing(null);
+      setSuccessMessage(
+        wasCreating ? ITEM_FORM_TEXT.messages.added : ITEM_FORM_TEXT.messages.updated,
+      );
       await load();
     } catch (err) {
-      setFormError(
-        err instanceof ApiError && err.status === 400
-          ? "Check the item details and try again."
-          : "Could not save the item.",
-      );
+      void err;
+      setFormError(ITEM_FORM_TEXT.errors.saveFailed);
     } finally {
       setFormBusy(false);
     }
@@ -955,6 +1303,11 @@ export default function ProductsManagementPage() {
     <>
       <Topbar title="Product Management" />
       <div className="px-8 pb-10">
+        {successMessage && (
+          <p className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            {successMessage}
+          </p>
+        )}
         <div className="rounded-2xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
             <div>
@@ -998,6 +1351,7 @@ export default function ProductsManagementPage() {
               <button
                 onClick={() => {
                   setFormError("");
+                  setSuccessMessage("");
                   setEditing({ mode: "create" });
                 }}
                 disabled={categories.length === 0}
@@ -1078,6 +1432,7 @@ export default function ProductsManagementPage() {
                           <button
                             onClick={() => {
                               setFormError("");
+                              setSuccessMessage("");
                               setEditing({ mode: "edit", product });
                             }}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
