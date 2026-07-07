@@ -102,7 +102,7 @@ const ITEM_FORM_TEXT = {
     discountPlaceholder: "Leave empty if no discount",
     discountHelper: "Only add this if the item is on sale.",
     stockLabel: "Available stock",
-    stockPlaceholder: "0",
+    stockPlaceholder: "1",
     stockHelper: "How many items are available now?",
     optionsHelper: "Add price and stock for each option below.",
   },
@@ -136,7 +136,7 @@ const ITEM_FORM_TEXT = {
     priceRequired: "Price is required.",
     priceGreaterThanZero: "Price must be greater than 0.",
     discountLessThanPrice: "Discount price must be less than regular price.",
-    stockNegative: "Stock cannot be negative.",
+    stockMinimum: "Stock must be at least 1.",
     optionNameRequired: "Option name is required.",
     optionRequired: "Please add at least one option.",
     photoUploading: "Photo is still uploading. Please wait.",
@@ -197,7 +197,7 @@ function optionDraft(option?: Partial<ApiProductVariationOption>): VariationDraf
         ? String(option.salePrice)
         : "",
     stockQuantity:
-      option?.stockQuantity !== undefined ? String(option.stockQuantity) : "",
+      option?.stockQuantity !== undefined ? String(option.stockQuantity) : "1",
     minQuantity: String(option?.minQuantity ?? 1),
     maxQuantity: String(option?.maxQuantity ?? 99),
   };
@@ -379,7 +379,7 @@ function ProductFormModal({
     simpleOption?.salePrice != null ? String(simpleOption.salePrice) : "",
   );
   const [simpleStock, setSimpleStock] = useState(
-    simpleOption ? String(simpleOption.stockQuantity) : "",
+    simpleOption ? String(simpleOption.stockQuantity) : "1",
   );
   const [options, setOptions] = useState<VariationDraft[]>(
     !simpleAtStart && editingProduct?.variationOptions?.length
@@ -459,7 +459,7 @@ function ProductFormModal({
             name: option.name.trim(),
             price: Number(option.price),
             salePrice: option.salePrice ? Number(option.salePrice) : undefined,
-            stockQuantity: Number(option.stockQuantity || 0),
+            stockQuantity: Number(option.stockQuantity || 1),
             isActive: true,
             isDefault: index === defaultIndex,
             minQuantity: Number(option.minQuantity),
@@ -473,7 +473,7 @@ function ProductFormModal({
             name: SIMPLE_OPTION_NAME,
             price: Number(simplePrice),
             salePrice: simpleSalePrice ? Number(simpleSalePrice) : undefined,
-            stockQuantity: Number(simpleStock || 0),
+            stockQuantity: Number(simpleStock || 1),
             isActive: true,
             isDefault: true,
             minQuantity: 1,
@@ -532,13 +532,12 @@ function ProductFormModal({
   const hasImageUploadErrors = images.some((image) => image.error);
   const simplePriceValue = numberFromInput(simplePrice);
   const simpleSalePriceValue = numberFromInput(simpleSalePrice);
-  const simpleStockValue = numberFromInput(simpleStock || "0");
+  const simpleStockValue = numberFromInput(simpleStock || "1");
   const filledOptions = options.filter(
     (option) =>
       option.name.trim() ||
       option.price.trim() ||
-      option.salePrice.trim() ||
-      option.stockQuantity.trim(),
+      option.salePrice.trim(),
   );
 
   const nameError = title.trim() ? "" : ITEM_FORM_TEXT.errors.nameRequired;
@@ -559,19 +558,18 @@ function ProductFormModal({
       ? ITEM_FORM_TEXT.errors.discountLessThanPrice
       : "";
   const simpleStockError =
-    Number.isFinite(simpleStockValue) && simpleStockValue < 0
-      ? ITEM_FORM_TEXT.errors.stockNegative
+    !Number.isFinite(simpleStockValue) || simpleStockValue < 1
+      ? ITEM_FORM_TEXT.errors.stockMinimum
       : "";
 
   const optionErrors = options.map((option) => {
     const priceValue = numberFromInput(option.price);
     const salePriceValue = numberFromInput(option.salePrice);
-    const stockValue = numberFromInput(option.stockQuantity || "0");
+    const stockValue = numberFromInput(option.stockQuantity || "1");
     const rowHasAnyValue =
       option.name.trim() ||
       option.price.trim() ||
-      option.salePrice.trim() ||
-      option.stockQuantity.trim();
+      option.salePrice.trim();
 
     return {
       name:
@@ -592,8 +590,8 @@ function ProductFormModal({
           ? ITEM_FORM_TEXT.errors.discountLessThanPrice
           : "",
       stock:
-        Number.isFinite(stockValue) && stockValue < 0
-          ? ITEM_FORM_TEXT.errors.stockNegative
+        rowHasAnyValue && (!Number.isFinite(stockValue) || stockValue < 1)
+          ? ITEM_FORM_TEXT.errors.stockMinimum
           : "",
     };
   });
@@ -1011,7 +1009,7 @@ function ProductFormModal({
                     value={simpleStock}
                     onChange={(e) => setSimpleStock(e.target.value)}
                     type="number"
-                    min="0"
+                    min="1"
                     placeholder={ITEM_FORM_TEXT.price.stockPlaceholder}
                     className={numberInputCls}
                   />
@@ -1132,7 +1130,7 @@ function ProductFormModal({
                             updateOption(index, { stockQuantity: e.target.value })
                           }
                           type="number"
-                          min="0"
+                          min="1"
                           placeholder={ITEM_FORM_TEXT.price.stockPlaceholder}
                           className={numberInputCls}
                         />
