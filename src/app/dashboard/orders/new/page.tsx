@@ -136,6 +136,48 @@ function StepperPanel({
 // ---------------------------------------------------------------------------
 // Step 2 — product card
 // ---------------------------------------------------------------------------
+function QuantityControl({
+  label,
+  quantity,
+  busy,
+  outOfStock,
+  onIncrease,
+  onDecrease,
+}: {
+  label: string;
+  quantity: number;
+  busy: boolean;
+  outOfStock?: boolean;
+  onIncrease: () => void;
+  onDecrease: () => void;
+}) {
+  return (
+    <div className="flex items-center overflow-hidden rounded-lg border border-slate-200">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onDecrease}
+        aria-label={`Decrease ${label}`}
+        className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+      >
+        -
+      </button>
+      <span className="min-w-8 px-2 text-center text-xs font-bold text-slate-900">
+        {busy ? "..." : quantity}
+      </span>
+      <button
+        type="button"
+        disabled={busy || outOfStock}
+        onClick={onIncrease}
+        aria-label={`Increase ${label}`}
+        className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 function ProductCard({
   product,
   busy,
@@ -153,20 +195,24 @@ function ProductCard({
 }) {
   const options = (product.variationOptions ?? []).filter((o) => o.isActive);
   const defaultOption = options.find((o) => o.isDefault) ?? options[0];
-  const [optionId, setOptionId] = useState(defaultOption?.id ?? "");
-  const selected = options.find((o) => o.id === optionId) ?? defaultOption;
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const selectedCartItem = cartItems.find(
     (item) =>
       item.productId === product.id &&
-      item.variationOptionId === (selected?.id ?? null),
+      item.variationOptionId === (defaultOption?.id ?? null),
   );
   const inCartQty = selectedCartItem?.quantity ?? 0;
+  const productCartItems = cartItems.filter((item) => item.productId === product.id);
+  const productCartQty = productCartItems.reduce((sum, item) => sum + item.quantity, 0);
   const price =
-    selected?.salePrice ??
-    selected?.price ??
+    defaultOption?.salePrice ??
+    defaultOption?.price ??
     product.discountedPrice ??
     product.price;
-  const outOfStock = product.inStock === false || (selected ? selected.stockQuantity <= 0 : false);
+  const hasManyOptions = options.length > 1;
+  const outOfStock =
+    product.inStock === false ||
+    (!hasManyOptions && defaultOption ? defaultOption.stockQuantity <= 0 : false);
   const image = product.coverImage?.url ?? product.images?.[0]?.url ?? null;
 
   return (
@@ -197,54 +243,132 @@ function ProductCard({
             {outOfStock ? "Out of stock" : "In stock"}
           </span>
         </div>
-        {options.length > 1 && (
-          <select
-            value={optionId}
-            onChange={(e) => setOptionId(e.target.value)}
-            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-brand-500"
-          >
-            {options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.name} · Rs. {option.salePrice ?? option.price}
-              </option>
-            ))}
-          </select>
+        {hasManyOptions && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50/70">
+            <button
+              type="button"
+              onClick={() => setOptionsOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold text-slate-700"
+            >
+              <span>Options</span>
+              <span className="text-slate-400">
+                {optionsOpen
+                  ? "Close"
+                  : productCartQty > 0
+                    ? `${productCartQty} added`
+                    : "Choose"}
+              </span>
+            </button>
+            {optionsOpen && (
+              <div className="space-y-2 border-t border-slate-200 p-2">
+                {options.map((option) => {
+                  const optionCartItem = cartItems.find(
+                    (item) =>
+                      item.productId === product.id &&
+                      item.variationOptionId === (option.id ?? null),
+                  );
+                  const optionQty = optionCartItem?.quantity ?? 0;
+                  const optionOutOfStock =
+                    product.inStock === false || option.stockQuantity <= 0;
+                  const optionBusy = busy || !option.id;
+
+                  return (
+                    <div
+                      key={option.id ?? option.name}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-2"
+                    >
+                      <button
+                        type="button"
+                        disabled={optionBusy || optionOutOfStock}
+                        onClick={() => {
+                          if (!optionCartItem) {
+                            onAdd(option.id);
+                          }
+                        }}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed"
+                      >
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            optionCartItem
+                              ? "border-brand-600 bg-brand-600 text-white"
+                              : "border-slate-300 bg-white text-transparent"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                          </svg>
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-semibold text-slate-800">
+                            {option.name}
+                          </span>
+                          <span className="block text-[11px] text-slate-400">
+                            {optionOutOfStock ? "Out of stock" : formatRs(option.salePrice ?? option.price)}
+                          </span>
+                        </span>
+                      </button>
+                      {optionQty > 0 && optionCartItem ? (
+                        <QuantityControl
+                          label={`${product.title} ${option.name}`}
+                          quantity={optionQty}
+                          busy={busy}
+                          outOfStock={optionOutOfStock}
+                          onDecrease={() =>
+                            optionQty <= 1
+                              ? onRemove(optionCartItem.id)
+                              : onChangeQty(optionCartItem.id, optionQty - 1)
+                          }
+                          onIncrease={() => onChangeQty(optionCartItem.id, optionQty + 1)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={optionBusy || optionOutOfStock}
+                          onClick={() => onAdd(option.id)}
+                          className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          Add
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-          <span className="text-sm font-bold text-slate-900">{formatRs(price)}</span>
-          {inCartQty > 0 && selectedCartItem ? (
-            <div className="flex items-center overflow-hidden rounded-lg border border-slate-200">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  inCartQty <= 1
-                    ? onRemove(selectedCartItem.id)
-                    : onChangeQty(selectedCartItem.id, inCartQty - 1)
-                }
-                aria-label={`Decrease ${product.title}`}
-                className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
-              >
-                -
-              </button>
-              <span className="min-w-8 px-2 text-center text-xs font-bold text-slate-900">
-                {busy ? "..." : inCartQty}
-              </span>
-              <button
-                type="button"
-                disabled={busy || outOfStock}
-                onClick={() => onChangeQty(selectedCartItem.id, inCartQty + 1)}
-                aria-label={`Increase ${product.title}`}
-                className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
-              >
-                +
-              </button>
-            </div>
+          <span className="text-sm font-bold text-slate-900">
+            {hasManyOptions ? `From ${formatRs(price)}` : formatRs(price)}
+          </span>
+          {hasManyOptions ? (
+            <button
+              type="button"
+              disabled={busy || product.inStock === false}
+              onClick={() => setOptionsOpen((open) => !open)}
+              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {productCartQty > 0 ? `${productCartQty} added` : "Choose"}
+            </button>
+          ) : inCartQty > 0 && selectedCartItem ? (
+            <QuantityControl
+              label={product.title}
+              quantity={inCartQty}
+              busy={busy}
+              outOfStock={outOfStock}
+              onDecrease={() =>
+                inCartQty <= 1
+                  ? onRemove(selectedCartItem.id)
+                  : onChangeQty(selectedCartItem.id, inCartQty - 1)
+              }
+              onIncrease={() => onChangeQty(selectedCartItem.id, inCartQty + 1)}
+            />
           ) : (
             <button
               type="button"
               disabled={busy || outOfStock}
-              onClick={() => onAdd(selected?.id)}
+              onClick={() => onAdd(defaultOption?.id)}
               className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {busy ? "Adding..." : "Add"}
