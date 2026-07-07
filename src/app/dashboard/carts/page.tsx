@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Topbar from "@/components/Topbar";
 import StatusBadge from "@/components/StatusBadge";
 import { getManagedCart, listManagedCarts } from "@/lib/endpoints";
-import type { ApiManagedCart, PaginatedManagedCarts } from "@/lib/types";
+import type { ApiCartItem, ApiManagedCart, PaginatedManagedCarts } from "@/lib/types";
 
 function formatMoney(value: number) {
   return `Rs. ${value.toLocaleString("en-PK")}`;
@@ -20,6 +20,72 @@ function formatDate(iso: string) {
   } catch {
     return iso;
   }
+}
+
+type ProductImageValue =
+  | string
+  | { url: string; altText?: string | null }
+  | null
+  | undefined;
+
+type CartProductWithImageFallbacks = Omit<ApiCartItem["product"], "image"> & {
+  image?: ProductImageValue;
+  coverImage?: ProductImageValue;
+  images?: ProductImageValue[];
+};
+
+function cartProductImage(product: CartProductWithImageFallbacks) {
+  const image = product.image ?? product.coverImage ?? product.images?.[0] ?? null;
+
+  if (!image) {
+    return null;
+  }
+
+  if (typeof image === "string") {
+    return { url: image, altText: null };
+  }
+
+  return image;
+}
+
+function ProductImage({
+  product,
+}: {
+  product: CartProductWithImageFallbacks;
+}) {
+  const [failed, setFailed] = useState(false);
+  const image = failed ? null : cartProductImage(product);
+
+  if (!image) {
+    return (
+      <div className="flex h-12 w-16 items-center justify-center rounded-lg border border-slate-100 bg-slate-100 text-slate-300">
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.7}
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m2.25 15.75 5.16-5.16a2.25 2.25 0 0 1 3.18 0l5.16 5.16m-1.5-1.5 1.41-1.41a2.25 2.25 0 0 1 3.18 0l2.91 2.91M3.75 5.25h16.5A1.5 1.5 0 0 1 21.75 6.75v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm10.5 3.75h.008v.008h-.008V9Z"
+          />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={image.url}
+      alt={image.altText ?? product.title}
+      onError={() => setFailed(true)}
+      className="h-12 w-16 rounded-lg border border-slate-100 object-cover"
+    />
+  );
 }
 
 function CartDetailsModal({
@@ -100,15 +166,7 @@ function CartDetailsModal({
                 <tr key={item.id}>
                   <td className="px-3 py-4">
                     <div className="flex items-center gap-3">
-                      {item.product.image ? (
-                        <img
-                          src={item.product.image.url}
-                          alt={item.product.image.altText ?? item.product.title}
-                          className="h-12 w-16 rounded-lg border border-slate-100 object-cover"
-                        />
-                      ) : (
-                        <div className="h-12 w-16 rounded-lg bg-slate-100" />
-                      )}
+                      <ProductImage product={item.product} />
                       <div>
                         <div className="font-semibold text-slate-900">{item.product.title}</div>
                         <div className="text-xs text-slate-400">{item.product.slug}</div>

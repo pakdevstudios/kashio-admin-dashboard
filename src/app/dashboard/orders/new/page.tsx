@@ -30,6 +30,7 @@ import {
   type ApiAddress,
   type ApiCategory,
   type ApiCourier,
+  type ApiCourierOrderItem,
   type ApiCustomerLookup,
   type ApiProduct,
 } from "@/lib/types";
@@ -138,18 +139,28 @@ function StepperPanel({
 function ProductCard({
   product,
   busy,
-  inCartQty,
+  cartItems,
   onAdd,
+  onChangeQty,
+  onRemove,
 }: {
   product: ApiProduct;
   busy: boolean;
-  inCartQty: number;
+  cartItems: ApiCourierOrderItem[];
   onAdd: (variationOptionId?: string) => void;
+  onChangeQty: (itemId: string, quantity: number) => void;
+  onRemove: (itemId: string) => void;
 }) {
   const options = (product.variationOptions ?? []).filter((o) => o.isActive);
   const defaultOption = options.find((o) => o.isDefault) ?? options[0];
   const [optionId, setOptionId] = useState(defaultOption?.id ?? "");
   const selected = options.find((o) => o.id === optionId) ?? defaultOption;
+  const selectedCartItem = cartItems.find(
+    (item) =>
+      item.productId === product.id &&
+      item.variationOptionId === (selected?.id ?? null),
+  );
+  const inCartQty = selectedCartItem?.quantity ?? 0;
   const price =
     selected?.salePrice ??
     selected?.price ??
@@ -201,14 +212,44 @@ function ProductCard({
         )}
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <span className="text-sm font-bold text-slate-900">{formatRs(price)}</span>
-          <button
-            type="button"
-            disabled={busy || outOfStock}
-            onClick={() => onAdd(selected?.id)}
-            className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {busy ? "Adding…" : inCartQty > 0 ? `Add (${inCartQty} in cart)` : "Add"}
-          </button>
+          {inCartQty > 0 && selectedCartItem ? (
+            <div className="flex items-center overflow-hidden rounded-lg border border-slate-200">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  inCartQty <= 1
+                    ? onRemove(selectedCartItem.id)
+                    : onChangeQty(selectedCartItem.id, inCartQty - 1)
+                }
+                aria-label={`Decrease ${product.title}`}
+                className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                -
+              </button>
+              <span className="min-w-8 px-2 text-center text-xs font-bold text-slate-900">
+                {busy ? "..." : inCartQty}
+              </span>
+              <button
+                type="button"
+                disabled={busy || outOfStock}
+                onClick={() => onChangeQty(selectedCartItem.id, inCartQty + 1)}
+                aria-label={`Increase ${product.title}`}
+                className="flex h-8 w-8 items-center justify-center text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={busy || outOfStock}
+              onClick={() => onAdd(selected?.id)}
+              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {busy ? "Adding..." : "Add"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -719,11 +760,17 @@ export default function CreateOrderWizardPage() {
                         <ProductCard
                           key={product.id}
                           product={product}
-                          busy={addingId === product.id}
-                          inCartQty={cartItems
-                            .filter((item) => item.productId === product.id)
-                            .reduce((sum, item) => sum + item.quantity, 0)}
+                          busy={
+                            addingId === product.id ||
+                            cartItems.some(
+                              (item) =>
+                                item.productId === product.id && itemBusyId === item.id,
+                            )
+                          }
+                          cartItems={cartItems}
                           onAdd={(variationOptionId) => handleAdd(product, variationOptionId)}
+                          onChangeQty={handleQty}
+                          onRemove={handleRemove}
                         />
                       ))}
                     </div>
