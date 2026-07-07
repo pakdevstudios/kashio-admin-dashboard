@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import StatusBadge from "@/components/StatusBadge";
+import { ApiError } from "@/lib/api";
 import {
   addDraftItem,
   cancelCourier,
@@ -72,6 +73,11 @@ function addressFromApi(apiAddress: ApiAddress): AddressForm {
 
 function formatRs(amount: number) {
   return `Rs. ${amount.toLocaleString("en-PK")}`;
+}
+
+/** Prefer the backend's message (e.g. "Product is out of stock"). */
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof ApiError && err.message ? err.message : fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,14 +186,18 @@ function QuantityControl({
 
 function ProductCard({
   product,
-  busy,
+  adding,
+  busyItemId,
   cartItems,
   onAdd,
   onChangeQty,
   onRemove,
 }: {
   product: ApiProduct;
-  busy: boolean;
+  /** An add for THIS product is in flight. */
+  adding: boolean;
+  /** Draft item id currently being updated/removed (any product). */
+  busyItemId: string | null;
   cartItems: ApiCourierOrderItem[];
   onAdd: (variationOptionId?: string) => void;
   onChangeQty: (itemId: string, quantity: number) => void;
@@ -216,8 +226,10 @@ function ProductCard({
   const image = product.coverImage?.url ?? product.images?.[0]?.url ?? null;
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-brand-500/50 hover:shadow-sm">
-      <div className="flex h-32 items-center justify-center bg-slate-50">
+    // `relative` anchors the options dropdown; the dropdown is an overlay so
+    // opening it never changes the card's height (no grid-row reflow).
+    <div className="relative flex flex-col rounded-xl border border-slate-200 bg-white transition hover:border-brand-500/50 hover:shadow-sm">
+      <div className="flex h-32 items-center justify-center overflow-hidden rounded-t-xl bg-slate-50">
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={image} alt={product.title} className="h-full w-full object-cover" />
@@ -243,101 +255,6 @@ function ProductCard({
             {outOfStock ? "Out of stock" : "In stock"}
           </span>
         </div>
-        {hasManyOptions && (
-          <div className="rounded-lg border border-slate-200 bg-slate-50/70">
-            <button
-              type="button"
-              onClick={() => setOptionsOpen((open) => !open)}
-              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold text-slate-700"
-            >
-              <span>Options</span>
-              <span className="text-slate-400">
-                {optionsOpen
-                  ? "Close"
-                  : productCartQty > 0
-                    ? `${productCartQty} added`
-                    : "Choose"}
-              </span>
-            </button>
-            {optionsOpen && (
-              <div className="space-y-2 border-t border-slate-200 p-2">
-                {options.map((option) => {
-                  const optionCartItem = cartItems.find(
-                    (item) =>
-                      item.productId === product.id &&
-                      item.variationOptionId === (option.id ?? null),
-                  );
-                  const optionQty = optionCartItem?.quantity ?? 0;
-                  const optionOutOfStock =
-                    product.inStock === false || option.stockQuantity <= 0;
-                  const optionBusy = busy || !option.id;
-
-                  return (
-                    <div
-                      key={option.id ?? option.name}
-                      className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-2"
-                    >
-                      <button
-                        type="button"
-                        disabled={optionBusy || optionOutOfStock}
-                        onClick={() => {
-                          if (!optionCartItem) {
-                            onAdd(option.id);
-                          }
-                        }}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed"
-                      >
-                        <span
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                            optionCartItem
-                              ? "border-brand-600 bg-brand-600 text-white"
-                              : "border-slate-300 bg-white text-transparent"
-                          }`}
-                          aria-hidden="true"
-                        >
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                          </svg>
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-xs font-semibold text-slate-800">
-                            {option.name}
-                          </span>
-                          <span className="block text-[11px] text-slate-400">
-                            {optionOutOfStock ? "Out of stock" : formatRs(option.salePrice ?? option.price)}
-                          </span>
-                        </span>
-                      </button>
-                      {optionQty > 0 && optionCartItem ? (
-                        <QuantityControl
-                          label={`${product.title} ${option.name}`}
-                          quantity={optionQty}
-                          busy={busy}
-                          outOfStock={optionOutOfStock}
-                          onDecrease={() =>
-                            optionQty <= 1
-                              ? onRemove(optionCartItem.id)
-                              : onChangeQty(optionCartItem.id, optionQty - 1)
-                          }
-                          onIncrease={() => onChangeQty(optionCartItem.id, optionQty + 1)}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={optionBusy || optionOutOfStock}
-                          onClick={() => onAdd(option.id)}
-                          className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                        >
-                          Add
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <span className="text-sm font-bold text-slate-900">
             {hasManyOptions ? `From ${formatRs(price)}` : formatRs(price)}
@@ -345,18 +262,29 @@ function ProductCard({
           {hasManyOptions ? (
             <button
               type="button"
-              disabled={busy || product.inStock === false}
+              disabled={product.inStock === false}
               onClick={() => setOptionsOpen((open) => !open)}
-              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-300 ${
+                productCartQty > 0
+                  ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
+                  : "bg-brand-600 text-white hover:bg-brand-700"
+              }`}
             >
-              {productCartQty > 0 ? `${productCartQty} added` : "Choose"}
+              {optionsOpen
+                ? "Close"
+                : productCartQty > 0
+                  ? `${productCartQty} added · Edit`
+                  : "Choose options"}
             </button>
           ) : inCartQty > 0 && selectedCartItem ? (
             <QuantityControl
               label={product.title}
               quantity={inCartQty}
-              busy={busy}
-              outOfStock={outOfStock}
+              busy={busyItemId === selectedCartItem.id}
+              outOfStock={
+                outOfStock ||
+                (defaultOption ? inCartQty >= defaultOption.stockQuantity : false)
+              }
               onDecrease={() =>
                 inCartQty <= 1
                   ? onRemove(selectedCartItem.id)
@@ -367,15 +295,109 @@ function ProductCard({
           ) : (
             <button
               type="button"
-              disabled={busy || outOfStock}
+              disabled={adding || outOfStock}
               onClick={() => onAdd(defaultOption?.id)}
               className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {busy ? "Adding..." : "Add"}
+              {adding ? "Adding..." : "Add"}
             </button>
           )}
         </div>
       </div>
+
+      {/* Options dropdown — overlay, so sibling cards never move. */}
+      {hasManyOptions && optionsOpen && (
+        <>
+          {/* click-away layer */}
+          <div
+            className="fixed inset-0 z-20"
+            onClick={() => setOptionsOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-x-2 top-full z-30 -mt-2 max-h-60 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+            {options.map((option) => {
+              const optionCartItem = cartItems.find(
+                (item) =>
+                  item.productId === product.id &&
+                  item.variationOptionId === (option.id ?? null),
+              );
+              const optionQty = optionCartItem?.quantity ?? 0;
+              const optionOutOfStock =
+                product.inStock === false || option.stockQuantity <= 0;
+              const rowBusy = optionCartItem
+                ? busyItemId === optionCartItem.id
+                : adding;
+
+              return (
+                <div
+                  key={option.id ?? option.name}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-50/70 px-2 py-2"
+                >
+                  <button
+                    type="button"
+                    disabled={rowBusy || !option.id || (optionOutOfStock && !optionCartItem)}
+                    onClick={() =>
+                      optionCartItem
+                        ? onRemove(optionCartItem.id)
+                        : onAdd(option.id)
+                    }
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed"
+                    title={optionCartItem ? "Remove from cart" : "Add to cart"}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        optionCartItem
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-slate-300 bg-white text-transparent"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                      </svg>
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-semibold text-slate-800">
+                        {option.name}
+                      </span>
+                      <span className="block text-[11px] text-slate-400">
+                        {optionOutOfStock
+                          ? "Out of stock"
+                          : formatRs(option.salePrice ?? option.price)}
+                      </span>
+                    </span>
+                  </button>
+                  {optionQty > 0 && optionCartItem ? (
+                    <QuantityControl
+                      label={`${product.title} ${option.name}`}
+                      quantity={optionQty}
+                      busy={rowBusy}
+                      outOfStock={
+                        optionOutOfStock || optionQty >= option.stockQuantity
+                      }
+                      onDecrease={() =>
+                        optionQty <= 1
+                          ? onRemove(optionCartItem.id)
+                          : onChangeQty(optionCartItem.id, optionQty - 1)
+                      }
+                      onIncrease={() => onChangeQty(optionCartItem.id, optionQty + 1)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={rowBusy || !option.id || optionOutOfStock}
+                      onClick={() => onAdd(option.id)}
+                      className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {rowBusy ? "..." : "Add"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -481,8 +503,8 @@ export default function CreateOrderWizardPage() {
       setResumedItems(result.orderItems?.length ?? 0);
       setStep(1);
       setMaxReached((m) => Math.max(m, 1));
-    } catch {
-      setStepError("Could not start the order. Check the backend and try again.");
+    } catch (err) {
+      setStepError(errorMessage(err, "Could not start the order. Try again."));
     } finally {
       setDraftBusy(false);
     }
@@ -541,8 +563,8 @@ export default function CreateOrderWizardPage() {
         quantity: 1,
       });
       setDraft(updated);
-    } catch {
-      setStepError("Could not add the product. Try again.");
+    } catch (err) {
+      setStepError(errorMessage(err, "Could not add the product. Try again."));
     } finally {
       setAddingId(null);
     }
@@ -552,10 +574,11 @@ export default function CreateOrderWizardPage() {
   async function handleQty(itemId: string, quantity: number) {
     if (!draft || quantity < 1) return;
     setItemBusyId(itemId);
+    setStepError("");
     try {
       setDraft(await updateDraftItem(draft.id, itemId, quantity));
-    } catch {
-      setStepError("Could not update the quantity.");
+    } catch (err) {
+      setStepError(errorMessage(err, "Could not update the quantity."));
     } finally {
       setItemBusyId(null);
     }
@@ -564,10 +587,11 @@ export default function CreateOrderWizardPage() {
   async function handleRemove(itemId: string) {
     if (!draft) return;
     setItemBusyId(itemId);
+    setStepError("");
     try {
       setDraft(await removeDraftItem(draft.id, itemId));
-    } catch {
-      setStepError("Could not remove the item.");
+    } catch (err) {
+      setStepError(errorMessage(err, "Could not remove the item."));
     } finally {
       setItemBusyId(null);
     }
@@ -580,8 +604,8 @@ export default function CreateOrderWizardPage() {
     try {
       await cancelCourier(draft.id, "Draft discarded");
       router.push("/dashboard/orders");
-    } catch {
-      setStepError("Could not discard the draft.");
+    } catch (err) {
+      setStepError(errorMessage(err, "Could not discard the draft."));
       setDiscardBusy(false);
     }
   }
@@ -609,8 +633,10 @@ export default function CreateOrderWizardPage() {
       setDraft(null);
       setStep(3);
       setMaxReached(3);
-    } catch {
-      setStepError("Could not place the order. Check the address and try again.");
+    } catch (err) {
+      setStepError(
+        errorMessage(err, "Could not place the order. Check the address and try again."),
+      );
     } finally {
       setCheckoutBusy(false);
     }
@@ -884,13 +910,8 @@ export default function CreateOrderWizardPage() {
                         <ProductCard
                           key={product.id}
                           product={product}
-                          busy={
-                            addingId === product.id ||
-                            cartItems.some(
-                              (item) =>
-                                item.productId === product.id && itemBusyId === item.id,
-                            )
-                          }
+                          adding={addingId === product.id}
+                          busyItemId={itemBusyId}
                           cartItems={cartItems}
                           onAdd={(variationOptionId) => handleAdd(product, variationOptionId)}
                           onChangeQty={handleQty}
