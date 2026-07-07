@@ -29,6 +29,10 @@ function formatMoney(value: number) {
   return `Rs. ${value.toLocaleString("en-PK")}`;
 }
 
+function productImageUrl(product: ApiProduct) {
+  return product.coverImage?.url ?? product.images[0]?.url ?? "";
+}
+
 // What the item's options represent, in plain words. Stored as the option
 // label the customer apps display (variationConfig.label).
 const OPTION_KINDS = ["Size", "Pack size", "Strength"] as const;
@@ -229,6 +233,87 @@ function matchesItemType(category: ApiCategory, key: "food" | "medicine") {
 
 function numberFromInput(value: string) {
   return value.trim() ? Number(value) : NaN;
+}
+
+function EditIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .563c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+      />
+    </svg>
+  );
+}
+
+function EyeIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+      />
+    </svg>
+  );
+}
+
+function PhotoIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m2.25 15.75 5.16-5.16a2.25 2.25 0 0 1 3.18 0l5.16 5.16m-1.5-1.5 1.41-1.41a2.25 2.25 0 0 1 3.18 0l2.91 2.91M3.75 5.25h16.5A1.5 1.5 0 0 1 21.75 6.75v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm10.5 3.75h.008v.008h-.008V9Z"
+      />
+    </svg>
+  );
 }
 
 function ProductFormModal({
@@ -1189,6 +1274,174 @@ function ProductFormModal({
   );
 }
 
+function ProductDetailsModal({
+  product,
+  busy,
+  onClose,
+  onEdit,
+  onRemove,
+}: {
+  product: ApiProduct;
+  busy: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const imageUrl = productImageUrl(product);
+  const activeOptions =
+    product.variationOptions?.filter((option) => option.isActive) ?? [];
+  const simple =
+    activeOptions.length === 1 && activeOptions[0].name === SIMPLE_OPTION_NAME;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${product.title} details`}
+        className="relative z-10 max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+              Product details
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-slate-900">
+              {product.title}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {product.category.parent
+                ? `${product.category.parent.name} · ${product.category.name}`
+                : product.category.name}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[220px_1fr]">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            <div className="aspect-square">
+              {imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imageUrl}
+                  alt={product.coverImage?.altText ?? product.title}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-slate-300">
+                  <PhotoIcon className="h-10 w-10" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500">Price</p>
+                <p className="mt-1 font-semibold text-slate-900">
+                  {product.priceLabel ? `${product.priceLabel} ` : ""}
+                  {formatMoney(
+                    product.displayPrice ?? product.effectivePrice ?? product.price,
+                  )}
+                </p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500">Stock</p>
+                <p className="mt-1 font-semibold text-slate-900">
+                  {product.stockQuantity}
+                </p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500">Visible</p>
+                <div className="mt-1">
+                  <StatusBadge status={product.isActive ? "Online" : "Offline"} />
+                </div>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500">Orders</p>
+                <div className="mt-1">
+                  <StatusBadge status={product.isAvailable ? "Online" : "Offline"} />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-slate-500">Description</p>
+              <p className="mt-1 text-sm text-slate-700">
+                {product.description || "No description added."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {activeOptions.length > 0 && (
+          <section className="mt-5 rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-900">Options</h3>
+              {simple && (
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
+                  Standard item
+                </span>
+              )}
+            </div>
+            <div className="mt-3 divide-y divide-slate-100">
+              {activeOptions.map((option) => (
+                <div
+                  key={option.id}
+                  className="grid grid-cols-2 gap-3 py-3 text-sm sm:grid-cols-[1fr_auto_auto]"
+                >
+                  <div>
+                    <p className="font-medium text-slate-900">{option.name}</p>
+                    {option.isDefault && (
+                      <p className="text-xs text-slate-500">Shown first</p>
+                    )}
+                  </div>
+                  <p className="font-semibold text-slate-900">
+                    {formatMoney(option.effectivePrice ?? option.salePrice ?? option.price)}
+                  </p>
+                  <p className="text-slate-500">Stock: {option.stockQuantity}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div className="sticky bottom-0 -mx-4 mt-6 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:-mx-6 sm:px-6">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+          >
+            <EditIcon />
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+          >
+            <TrashIcon />
+            Remove
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsManagementPage() {
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -1198,6 +1451,7 @@ export default function ProductsManagementPage() {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [editing, setEditing] = useState<EditingState | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<ApiProduct | null>(null);
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -1318,6 +1572,13 @@ export default function ProductsManagementPage() {
     }
   }
 
+  function openEdit(product: ApiProduct) {
+    setFormError("");
+    setSuccessMessage("");
+    setViewingProduct(null);
+    setEditing({ mode: "edit", product });
+  }
+
   return (
     <>
       <Topbar title="Product Management" />
@@ -1383,10 +1644,11 @@ export default function ProductsManagementPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[1180px] text-left text-sm">
               <thead className="border-y border-slate-100 bg-slate-50/60 text-xs font-medium text-slate-400">
                 <tr>
                   <th className="px-6 py-3 font-medium">No.</th>
+                  <th className="px-3 py-3 font-medium">Image</th>
                   <th className="px-3 py-3 font-medium">Item</th>
                   <th className="px-3 py-3 font-medium">Category</th>
                   <th className="px-3 py-3 font-medium">Options</th>
@@ -1399,6 +1661,7 @@ export default function ProductsManagementPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {products.map((product, index) => {
+                  const imageUrl = productImageUrl(product);
                   const activeOptionCount =
                     product.variationOptions?.filter((option) => option.isActive)
                       .length ?? 0;
@@ -1409,9 +1672,33 @@ export default function ProductsManagementPage() {
                     <tr key={product.id ?? product.slug} className="hover:bg-slate-50">
                       <td className="px-6 py-4 text-slate-500">{index + 1}.</td>
                       <td className="px-3 py-4">
-                        <div className="font-semibold text-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setViewingProduct(product)}
+                          aria-label={`View ${product.title}`}
+                          title="View details"
+                          className="group flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-slate-300 transition hover:border-brand-300 hover:text-brand-600"
+                        >
+                          {imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={imageUrl}
+                              alt={product.coverImage?.altText ?? product.title}
+                              className="h-full w-full object-cover transition group-hover:scale-105"
+                            />
+                          ) : (
+                            <PhotoIcon />
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-3 py-4">
+                        <button
+                          type="button"
+                          onClick={() => setViewingProduct(product)}
+                          className="text-left font-semibold text-slate-900 transition hover:text-brand-600"
+                        >
                           {product.title}
-                        </div>
+                        </button>
                       </td>
                       <td className="px-3 py-4 text-slate-500">
                         {product.category.parent
@@ -1450,29 +1737,21 @@ export default function ProductsManagementPage() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              setFormError("");
-                              setSuccessMessage("");
-                              setEditing({ mode: "edit", product });
-                            }}
+                            onClick={() => setViewingProduct(product)}
+                            aria-label={`View ${product.title}`}
+                            title="View"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                          >
+                            <EyeIcon />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(product)}
                             aria-label={`Edit ${product.title}`}
                             title="Edit"
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                           >
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={1.8}
-                              aria-hidden="true"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
-                              />
-                            </svg>
+                            <EditIcon />
                           </button>
                           <button
                             type="button"
@@ -1482,20 +1761,7 @@ export default function ProductsManagementPage() {
                             title="Remove"
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 disabled:opacity-60"
                           >
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={1.8}
-                              aria-hidden="true"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .563c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                              />
-                            </svg>
+                            <TrashIcon />
                           </button>
                         </div>
                       </td>
@@ -1531,6 +1797,16 @@ export default function ProductsManagementPage() {
           error={formError}
           onClose={() => setEditing(null)}
           onSubmit={handleSubmit}
+        />
+      )}
+
+      {viewingProduct && (
+        <ProductDetailsModal
+          product={viewingProduct}
+          busy={busyId === viewingProduct.id}
+          onClose={() => setViewingProduct(null)}
+          onEdit={() => openEdit(viewingProduct)}
+          onRemove={() => handleDelete(viewingProduct)}
         />
       )}
     </>
