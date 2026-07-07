@@ -264,17 +264,22 @@ function ProductCard({
               type="button"
               disabled={product.inStock === false}
               onClick={() => setOptionsOpen((open) => !open)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-300 ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-300 ${
                 productCartQty > 0
                   ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
                   : "bg-brand-600 text-white hover:bg-brand-700"
               }`}
             >
-              {optionsOpen
-                ? "Close"
-                : productCartQty > 0
-                  ? `${productCartQty} added · Edit`
-                  : "Choose options"}
+              {productCartQty > 0 ? `${productCartQty} added` : "Choose options"}
+              <svg
+                className={`h-3.5 w-3.5 transition-transform ${optionsOpen ? "rotate-180" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
             </button>
           ) : inCartQty > 0 && selectedCartItem ? (
             <QuantityControl
