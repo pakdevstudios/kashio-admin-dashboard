@@ -113,6 +113,54 @@ export function createAdminOrder(input: AdminOrderInput) {
   });
 }
 
+// ---- Draft orders (create-order wizard) ---------------------------------
+// A draft is a DRAFT-status courier acting as a per-caller cart. Adding /
+// updating items recomputes the total server-side; checkout flips it to
+// PENDING so it enters the normal delivery pipeline.
+export type DraftItemInput = {
+  productId: string;
+  variationOptionId?: string;
+  quantity: number;
+  price?: number;
+};
+
+export function createDraftOrder(input: { contact: string; name?: string }) {
+  return apiFetch<ApiCourier>("/v1/couriers/admin-orders/draft", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function addDraftItem(draftId: string, item: DraftItemInput) {
+  return apiFetch<ApiCourier>(`/v1/couriers/${draftId}/items`, {
+    method: "POST",
+    body: item,
+  });
+}
+
+export function updateDraftItem(draftId: string, itemId: string, quantity: number) {
+  return apiFetch<ApiCourier>(`/v1/couriers/${draftId}/items/${itemId}`, {
+    method: "PATCH",
+    body: { quantity },
+  });
+}
+
+export function removeDraftItem(draftId: string, itemId: string) {
+  return apiFetch<ApiCourier>(`/v1/couriers/${draftId}/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
+export function checkoutDraft(
+  draftId: string,
+  input: { address: AdminOrderInput["address"]; notes?: string },
+) {
+  return apiFetch<ApiCourier>(`/v1/couriers/${draftId}/checkout`, {
+    method: "POST",
+    body: input,
+  });
+}
+
 // ---- Riders ------------------------------------------------------------
 export function listRiders() {
   return apiFetch<ApiRider[]>("/v1/riders");
