@@ -119,6 +119,7 @@ export type ApiBanner = {
 
 export type ApiProductImage = {
   id?: string;
+  fileAssetId?: string | null;
   url: string;
   altText: string | null;
   sortOrder: number;
@@ -254,81 +255,6 @@ export type PaginatedProducts = {
 
 export type PaginatedBanners = {
   data: ApiBanner[];
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-};
-
-export type ApiCartItem = {
-  id: string;
-  productId: string;
-  quantity: number;
-  unitPrice: number;
-  subtotal: number;
-  isAvailable: boolean;
-  exceedsStock: boolean;
-  product: {
-    id: string;
-    slug: string;
-    title: string;
-    price: number;
-    discountedPrice: number | null;
-    stockQuantity: number;
-    isActive: boolean;
-    isAvailable: boolean;
-    category: {
-      id: string;
-      slug: string;
-      name: string;
-    };
-    image: {
-      url: string;
-      altText: string | null;
-    } | null;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type ApiCart = {
-  id: string;
-  userId: string;
-  items: ApiCartItem[];
-  summary: {
-    itemCount: number;
-    uniqueItems: number;
-    subtotal: number;
-    discount: number;
-    shipping: number;
-    tax: number;
-    total: number;
-    unavailableCount: number;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type ApiManagedCart = ApiCart & {
-  customer: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string | null;
-    role: string;
-  };
-};
-
-export type PaginatedManagedCarts = {
-  data: ApiManagedCart[];
-  metrics: {
-    activeCarts: number;
-    emptyCarts: number;
-    totalCartValue: number;
-    totalItems: number;
-  };
   meta: {
     page: number;
     limit: number;

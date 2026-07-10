@@ -173,6 +173,7 @@ type VariationDraft = {
 
 type ImageDraft = {
   id: string;
+  fileAssetId?: string | null;
   url: string;
   previewUrl: string;
   uploading: boolean;
@@ -209,6 +210,7 @@ function imageDrafts(product?: ApiProduct): ImageDraft[] {
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((image) => ({
       id: image.id ?? imageId(),
+      fileAssetId: image.fileAssetId,
       url: image.url,
       previewUrl: "",
       uploading: false,
@@ -492,6 +494,7 @@ function ProductFormModal({
     const normalizedImages = images
       .map((image, index) => ({
         url: image.url.trim(),
+        fileAssetId: image.fileAssetId,
         sortOrder: index,
         isPrimary: image.isPrimary,
       }))
@@ -705,7 +708,14 @@ function ProductFormModal({
       setImages((items) =>
         items.map((item) =>
           item.id === id
-            ? { ...item, url: uploaded.url, previewUrl: "", uploading: false, error: "" }
+            ? {
+                ...item,
+                fileAssetId: uploaded.fileAssetId,
+                url: uploaded.url,
+                previewUrl: "",
+                uploading: false,
+                error: "",
+              }
             : item,
         ),
       );
@@ -1434,8 +1444,11 @@ function ProductDetailsModal({
   );
 }
 
+const PRODUCTS_PER_PAGE = 8;
+
 export default function ProductsManagementPage() {
   const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [page, setPage] = useState(1);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [kashioSupplierId, setKashioSupplierId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1472,7 +1485,7 @@ export default function ProductsManagementPage() {
       const res = await listManagedProducts({
         search: query.trim() || undefined,
         categoryId: categoryId || undefined,
-        limit: 50,
+        limit: 200,
       });
       setProducts(res.data);
     } catch (err) {
@@ -1490,6 +1503,11 @@ export default function ProductsManagementPage() {
     load();
   }, [load]);
 
+  // Filters changed → jump back to the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [query, categoryId]);
+
   const counts = useMemo(
     () => ({
       total: products.length,
@@ -1498,6 +1516,18 @@ export default function ProductsManagementPage() {
     }),
     [products],
   );
+
+  const totalPages = Math.max(1, Math.ceil(products.length / PRODUCTS_PER_PAGE));
+  const pageItems = useMemo(
+    () =>
+      products.slice((page - 1) * PRODUCTS_PER_PAGE, page * PRODUCTS_PER_PAGE),
+    [products, page],
+  );
+
+  // Keep the page in range if the list shrank (e.g. after a delete).
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const { roots, childrenOf } = useMemo(
     () => groupCategories(categories),
@@ -1650,7 +1680,7 @@ export default function ProductsManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {products.map((product, index) => {
+                {pageItems.map((product, index) => {
                   const imageUrl = productImageUrl(product);
                   const activeOptionCount =
                     product.variationOptions?.filter((option) => option.isActive)
@@ -1660,7 +1690,9 @@ export default function ProductsManagementPage() {
                     product.variationOptions?.[0]?.name === SIMPLE_OPTION_NAME;
                   return (
                     <tr key={product.id ?? product.slug} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 text-slate-500">{index + 1}.</td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {(page - 1) * PRODUCTS_PER_PAGE + index + 1}.
+                      </td>
                       <td className="px-3 py-4">
                         <button
                           type="button"
@@ -1770,6 +1802,45 @@ export default function ProductsManagementPage() {
               </p>
             )}
           </div>
+          {!loading && !error && totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+              <p className="text-sm text-slate-500">
+                Page {page} of {totalPages}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPage(p)}
+                    className={`min-w-[36px] rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                      p === page
+                        ? "border-brand-600 bg-brand-600 text-white"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

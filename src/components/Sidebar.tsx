@@ -10,7 +10,6 @@ const nav = [
   { label: "Orders Management", href: "/dashboard/orders", icon: "orders" },
   { label: "Category Management", href: "/dashboard/categories", icon: "categories" },
   { label: "Product Management", href: "/dashboard/products", icon: "products" },
-  { label: "Cart Management", href: "/dashboard/carts", icon: "cart" },
   { label: "Banner Management", href: "/dashboard/banners", icon: "banners" },
   { label: "Supplier Management", href: "/dashboard/suppliers", icon: "suppliers" },
   { label: "Customer Management", href: "/dashboard/customers", icon: "users" },
@@ -64,13 +63,6 @@ function Icon({ name }: { name: string }) {
         <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 15l4.5-4.5a1.5 1.5 0 012.121 0l2.129 2.129 1.129-1.129a1.5 1.5 0 012.121 0l4.5 4.5M8.25 8.25h.008v.008H8.25V8.25z" />
-        </svg>
-      );
-    case "cart":
-      return (
-        <svg className={c} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437m0 0L6.75 12.75A2.25 2.25 0 008.946 14.5h7.364a2.25 2.25 0 002.166-1.637l1.023-3.58A1.5 1.5 0 0018.057 7.4H5.106" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 20.25a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.25 20.25a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
         </svg>
       );
     case "suppliers":

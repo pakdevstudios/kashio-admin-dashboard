@@ -4,8 +4,6 @@ import { ApiError, apiFetch, tokenStore } from "./api";
 import type {
   ApiCategory,
   ApiBanner,
-  ApiCart,
-  ApiManagedCart,
   ApiCourier,
   ApiCustomerLookup,
   ApiProduct,
@@ -13,7 +11,6 @@ import type {
   ApiSupplier,
   AuthResponse,
   PaginatedBanners,
-  PaginatedManagedCarts,
   PaginatedProducts,
   ProductType,
   SupplierStatus,
@@ -306,56 +303,6 @@ export function deleteBanner(id: string) {
   });
 }
 
-// ---- Cart --------------------------------------------------------------
-export function getCart() {
-  return apiFetch<ApiCart>("/v1/cart");
-}
-
-export function addCartItem(input: { productId: string; quantity?: number }) {
-  return apiFetch<ApiCart>("/v1/cart/items", {
-    method: "POST",
-    body: input,
-  });
-}
-
-export function updateCartItem(itemId: string, quantity: number) {
-  return apiFetch<ApiCart>(`/v1/cart/items/${itemId}`, {
-    method: "PATCH",
-    body: { quantity },
-  });
-}
-
-export function removeCartItem(itemId: string) {
-  return apiFetch<ApiCart>(`/v1/cart/items/${itemId}`, {
-    method: "DELETE",
-  });
-}
-
-export function clearCart() {
-  return apiFetch<ApiCart>("/v1/cart", {
-    method: "DELETE",
-  });
-}
-
-export function listManagedCarts(params?: {
-  search?: string;
-  page?: number;
-  limit?: number;
-}) {
-  const qs = new URLSearchParams();
-  if (params?.search) qs.set("search", params.search);
-  if (params?.page) qs.set("page", String(params.page));
-  if (params?.limit) qs.set("limit", String(params.limit));
-  const query = qs.toString();
-  return apiFetch<PaginatedManagedCarts>(
-    `/v1/cart/admin${query ? `?${query}` : ""}`,
-  );
-}
-
-export function getManagedCart(id: string) {
-  return apiFetch<ApiManagedCart>(`/v1/cart/admin/${id}`);
-}
-
 // ---- Products ----------------------------------------------------------
 export type ProductQueryParams = {
   search?: string;
@@ -401,6 +348,7 @@ export function listManagedProducts(params?: ProductQueryParams) {
 }
 
 export type ProductImageInput = {
+  fileAssetId?: string | null;
   url: string;
   altText?: string | null;
   sortOrder?: number;
@@ -488,6 +436,7 @@ export async function uploadProductImage(file: File) {
   body.append("file", file);
 
   const uploaded = await apiFetch<{
+    fileAssetId?: string;
     url: string;
     key?: string;
     path?: string;
@@ -501,7 +450,7 @@ export async function uploadProductImage(file: File) {
   console.info("[product-image-upload] final image URL ready", {
     finalUrl: uploaded.url,
   });
-  return { url: uploaded.url };
+  return { url: uploaded.url, fileAssetId: uploaded.fileAssetId };
 }
 
 export function addProductImage(productId: string, input: ProductImageInput) {
