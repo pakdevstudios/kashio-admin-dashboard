@@ -88,6 +88,8 @@ export type ApiCategory = {
   name: string;
   slug: string;
   description: string | null;
+  imageUrl: string | null;
+  imageFileAssetId: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

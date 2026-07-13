@@ -9,6 +9,7 @@ import {
   deleteCategory,
   listCategories,
   setCategoryStatus,
+  uploadCategoryImage,
   updateCategory,
   type CategoryInput,
 } from "@/lib/endpoints";
@@ -52,6 +53,13 @@ function CategoryFormModal({
     state.category?.description ?? "",
   );
   const [parentId, setParentId] = useState(state.category?.parentId ?? "");
+  const [imageUrl, setImageUrl] = useState(state.category?.imageUrl ?? "");
+  const [imageFileAssetId, setImageFileAssetId] = useState(
+    state.category?.imageFileAssetId ?? "",
+  );
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState("");
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -66,7 +74,53 @@ function CategoryFormModal({
       name: name.trim(),
       description: description.trim() || undefined,
       parentId: parentId || null,
+      imageUrl: imageUrl || null,
+      imageFileAssetId: imageFileAssetId || null,
     });
+  }
+
+  async function handleImageFile(file?: File | null) {
+    if (!file) return;
+    if (![
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "image/avif",
+    ].includes(file.type)) {
+      setImageError("Choose a JPG, PNG, WebP, GIF, or AVIF image.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setImageError("Category image must be 4 MB or smaller.");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviewUrl(previewUrl);
+    setImageUploading(true);
+    setImageError("");
+    try {
+      const uploaded = await uploadCategoryImage(file);
+      setImageUrl(uploaded.url);
+      setImageFileAssetId(uploaded.fileAssetId ?? "");
+    } catch (uploadError) {
+      setImageError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Category image upload failed.",
+      );
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      setImagePreviewUrl("");
+      setImageUploading(false);
+    }
+  }
+
+  function removeImage() {
+    setImageUrl("");
+    setImageFileAssetId("");
+    setImageError("");
   }
 
   const title =
@@ -74,7 +128,10 @@ function CategoryFormModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={() => !imageUploading && onClose()}
+      />
 
       <div
         role="dialog"
@@ -86,6 +143,7 @@ function CategoryFormModal({
           <h2 className="text-xl font-bold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
+            disabled={imageUploading}
             aria-label="Close"
             className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200"
           >
@@ -101,6 +159,75 @@ function CategoryFormModal({
               {error}
             </p>
           )}
+
+          <div>
+            <label className="mb-2 block text-xs font-medium text-slate-500">
+              Category image
+            </label>
+            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                {imagePreviewUrl || imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imagePreviewUrl || imageUrl}
+                    alt={name ? `${name} category` : "Category preview"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <svg
+                    className="h-9 w-9 text-slate-300"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Z" />
+                  </svg>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800">
+                  {imageUploading
+                    ? "Uploading image..."
+                    : imageUrl
+                      ? "Category image ready"
+                      : "Add category artwork"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  JPG, PNG, WebP, GIF, or AVIF. Maximum 4 MB. A square image works best.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label className={`rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 ${imageUploading ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
+                    {imageUrl ? "Replace image" : "Choose image"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      className="hidden"
+                      disabled={imageUploading}
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        handleImageFile(file);
+                      }}
+                    />
+                  </label>
+                  {imageUrl && (
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      disabled={imageUploading}
+                      className="rounded-lg px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {imageError && (
+                  <p className="mt-2 text-xs font-medium text-red-600">{imageError}</p>
+                )}
+              </div>
+            </div>
+          </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">
@@ -159,10 +286,10 @@ function CategoryFormModal({
             </button>
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || imageUploading}
               className="rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
-              {busy ? "Saving..." : "Save"}
+              {imageUploading ? "Uploading..." : busy ? "Saving..." : "Save"}
             </button>
           </div>
         </form>
@@ -360,8 +487,24 @@ export default function CategoriesPage() {
                   <tr key={category.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 text-slate-500">{index + 1}.</td>
                     <td className="px-3 py-4">
-                      <div className="font-semibold text-slate-900">
-                        {category.name}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                          {category.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={category.imageUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-sm font-bold text-slate-400">
+                              {category.name.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-semibold text-slate-900">
+                          {category.name}
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-4 text-slate-500">

@@ -202,6 +202,8 @@ export type CategoryInput = {
   name: string;
   description?: string | null;
   parentId?: string | null;
+  imageUrl?: string | null;
+  imageFileAssetId?: string | null;
 };
 
 export function createCategory(input: CategoryInput) {
@@ -450,6 +452,22 @@ export async function uploadProductImage(file: File) {
   console.info("[product-image-upload] final image URL ready", {
     finalUrl: uploaded.url,
   });
+  return { url: uploaded.url, fileAssetId: uploaded.fileAssetId };
+}
+
+export async function uploadCategoryImage(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("entityType", "category");
+
+  const uploaded = await apiFetch<{
+    fileAssetId?: string;
+    url: string;
+  }>("/v1/uploads/images", {
+    method: "POST",
+    body,
+  });
+
   return { url: uploaded.url, fileAssetId: uploaded.fileAssetId };
 }
 
