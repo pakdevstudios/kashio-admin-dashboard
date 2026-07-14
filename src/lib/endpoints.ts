@@ -6,16 +6,130 @@ import type {
   ApiBanner,
   ApiCourier,
   ApiCustomerLookup,
+  ApiCustomer,
+  ApiCustomerDetail,
+  ApiDeliveryPricing,
+  ApiDeliveryZone,
   ApiProduct,
   ApiRider,
   ApiSupplier,
   AuthResponse,
   PaginatedBanners,
   PaginatedProducts,
+  PaginatedCustomers,
   ProductType,
   SupplierStatus,
   VariationSelectionType,
 } from "./types";
+
+// ---- Delivery zones & pricing -----------------------------------------
+export type DeliveryZoneInput = {
+  name: string;
+  isActive?: boolean;
+  displayOrder?: number;
+  areas?: string[];
+};
+
+export function listDeliveryZones() {
+  return apiFetch<ApiDeliveryZone[]>("/v1/delivery-zones");
+}
+
+export function createDeliveryZone(input: DeliveryZoneInput) {
+  return apiFetch<ApiDeliveryZone>("/v1/delivery-zones", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateDeliveryZone(
+  id: string,
+  input: Partial<DeliveryZoneInput>,
+) {
+  return apiFetch<ApiDeliveryZone>(`/v1/delivery-zones/${id}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function deleteDeliveryZone(id: string) {
+  return apiFetch<{ success: boolean }>(`/v1/delivery-zones/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function getDeliveryPricing() {
+  return apiFetch<ApiDeliveryPricing>("/v1/delivery-zones/pricing");
+}
+
+export function updateDeliveryPricing(input: {
+  sameZoneFee: number;
+  crossZoneFee: number;
+  parcel10KgAddOn: number;
+}) {
+  return apiFetch<ApiDeliveryPricing>("/v1/delivery-zones/pricing", {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+// ---- Customers ---------------------------------------------------------
+export type CustomerInput = {
+  name: string;
+  email: string;
+  phone?: string;
+  password?: string;
+  isPremium?: boolean;
+  isActive?: boolean;
+};
+
+export function listCustomers(params?: {
+  search?: string;
+  isActive?: boolean;
+  isPremium?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: "name" | "email" | "createdAt" | "updatedAt";
+  sortOrder?: "asc" | "desc";
+}) {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (typeof params?.isActive === "boolean") qs.set("isActive", String(params.isActive));
+  if (typeof params?.isPremium === "boolean") qs.set("isPremium", String(params.isPremium));
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.sortBy) qs.set("sortBy", params.sortBy);
+  if (params?.sortOrder) qs.set("sortOrder", params.sortOrder);
+  const query = qs.toString();
+  return apiFetch<PaginatedCustomers>(`/v1/customers${query ? `?${query}` : ""}`);
+}
+
+export function getCustomer(id: string) {
+  return apiFetch<ApiCustomerDetail>(`/v1/customers/${id}`);
+}
+
+export function createCustomer(input: CustomerInput) {
+  return apiFetch<ApiCustomer>("/v1/customers", { method: "POST", body: input });
+}
+
+export function updateCustomer(id: string, input: Partial<CustomerInput>) {
+  return apiFetch<ApiCustomer>(`/v1/customers/${id}`, { method: "PATCH", body: input });
+}
+
+export function setCustomerStatus(id: string, isActive: boolean) {
+  return apiFetch<ApiCustomer>(`/v1/customers/${id}/status`, {
+    method: "PATCH",
+    body: { isActive },
+  });
+}
+
+export function deleteCustomer(id: string) {
+  return apiFetch<{
+    success: boolean;
+    deleted: boolean;
+    archived: boolean;
+    message?: string;
+  }>(`/v1/customers/${id}`, { method: "DELETE" });
+}
 
 // ---- Auth --------------------------------------------------------------
 export async function login(email: string, password: string) {

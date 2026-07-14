@@ -48,6 +48,34 @@ export type ApiAddress = {
   isDefault?: boolean;
 };
 
+export type ApiDeliveryArea = {
+  id: string;
+  name: string;
+  zoneId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiDeliveryZone = {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  displayOrder: number;
+  areas: ApiDeliveryArea[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiDeliveryPricing = {
+  id: string;
+  sameZoneFee: number;
+  crossZoneFee: number;
+  parcel10KgAddOn: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiCourierOrderItem = {
   id: string;
   courierId: string;
@@ -70,6 +98,46 @@ export type ApiCustomerLookup = {
     phone: string | null;
   } | null;
   address: ApiAddress | null;
+};
+
+export type ApiCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  provider: "GOOGLE" | "PASSWORD";
+  hasGoogleAccount: boolean;
+  isPremium: boolean;
+  isActive: boolean;
+  orderCount: number;
+  addressCount: number;
+  totalSpent: number;
+  lastOrderAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiCustomerDetail = ApiCustomer & {
+  addresses: ApiAddress[];
+  orders: Array<{
+    id: string;
+    code: string;
+    status: CourierStatus;
+    price: number;
+    categories: string[];
+    createdAt: string;
+  }>;
+};
+
+export type PaginatedCustomers = {
+  data: ApiCustomer[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export type ApiRider = {
