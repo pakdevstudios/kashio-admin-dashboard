@@ -65,6 +65,7 @@ export function updateDeliveryPricing(input: {
   sameZoneFee: number;
   crossZoneFee: number;
   parcel10KgAddOn: number;
+  storeAreaId?: string | null;
 }) {
   return apiFetch<ApiDeliveryPricing>("/v1/delivery-zones/pricing", {
     method: "PATCH",

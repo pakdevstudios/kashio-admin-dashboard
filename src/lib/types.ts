@@ -72,6 +72,7 @@ export type ApiDeliveryPricing = {
   sameZoneFee: number;
   crossZoneFee: number;
   parcel10KgAddOn: number;
+  storeAreaId: string | null;
   createdAt: string;
   updatedAt: string;
 };

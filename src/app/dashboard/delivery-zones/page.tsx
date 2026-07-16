@@ -178,30 +178,33 @@ function ZoneModal({
 
 function PricingPanel({
   pricing,
+  zones,
   onSaved,
 }: {
   pricing: ApiDeliveryPricing;
+  zones: ApiDeliveryZone[];
   onSaved: (pricing: ApiDeliveryPricing) => void;
 }) {
   const [sameZoneFee, setSameZoneFee] = useState(String(pricing.sameZoneFee));
   const [crossZoneFee, setCrossZoneFee] = useState(String(pricing.crossZoneFee));
   const [parcel10KgAddOn, setParcel10KgAddOn] = useState(String(pricing.parcel10KgAddOn));
+  const [storeAreaId, setStoreAreaId] = useState(pricing.storeAreaId ?? "");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    const input = {
+    const fees = {
       sameZoneFee: Number(sameZoneFee),
       crossZoneFee: Number(crossZoneFee),
       parcel10KgAddOn: Number(parcel10KgAddOn),
     };
-    if (Object.values(input).some((value) => !Number.isInteger(value) || value < 0)) {
+    if (Object.values(fees).some((value) => !Number.isInteger(value) || value < 0)) {
       setError("Enter valid whole-rupee amounts.");
       return;
     }
-    if (input.crossZoneFee < input.sameZoneFee) {
+    if (fees.crossZoneFee < fees.sameZoneFee) {
       setError("Cross-zone pricing cannot be lower than same-zone pricing.");
       return;
     }
@@ -209,7 +212,10 @@ function PricingPanel({
     setError("");
     setNotice("");
     try {
-      const updated = await updateDeliveryPricing(input);
+      const updated = await updateDeliveryPricing({
+        ...fees,
+        storeAreaId: storeAreaId || null,
+      });
       onSaved(updated);
       setNotice("Pricing saved.");
     } catch (saveError) {
@@ -258,6 +264,33 @@ function PricingPanel({
             <span className="mt-2 block text-xs leading-5 text-slate-500">{field.help}</span>
           </label>
         ))}
+      </div>
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <label className="block">
+          <span className="text-sm font-semibold text-slate-800">
+            Food store origin area
+          </span>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Food delivery is priced same-zone vs cross-zone relative to this
+            area. Leave as &ldquo;None&rdquo; to keep food delivery free.
+          </p>
+          <select
+            value={storeAreaId}
+            onChange={(event) => setStoreAreaId(event.target.value)}
+            className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          >
+            <option value="">None — food delivery free</option>
+            {zones.map((zone) => (
+              <optgroup key={zone.id} label={zone.name}>
+                {zone.areas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
       </div>
       {error && <p className="mt-4 text-sm font-medium text-red-600">{error}</p>}
       {notice && <p className="mt-4 text-sm font-medium text-brand-700">{notice}</p>}
@@ -387,7 +420,9 @@ export default function DeliveryZonesPage() {
           ))}
         </section>
 
-        {pricing && <PricingPanel pricing={pricing} onSaved={setPricing} />}
+        {pricing && (
+          <PricingPanel pricing={pricing} zones={zones} onSaved={setPricing} />
+        )}
 
         <section className="rounded-2xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-6 py-5">
